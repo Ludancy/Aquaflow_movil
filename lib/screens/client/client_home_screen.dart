@@ -400,62 +400,67 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                         onTap: () {
                           appState.selectLiters(opt['liters'], opt['basePrice'] + opt['shippingPrice']);
                         },
-                        child: Stack(
-                          clipBehavior: Clip.none,
-                          children: [
-                            Container(
-                              margin: const EdgeInsets.symmetric(horizontal: 4),
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              decoration: BoxDecoration(
-                                color: isSelected ? AppTheme.primaryBlue : const Color(0xFF0D1724),
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(
-                                  color: isSelected ? AppTheme.primaryBlue : AppTheme.borderDark,
-                                  width: 1.0,
-                                ),
-                              ),
-                              child: Column(
-                                children: [
-                                  Icon(
-                                    Icons.water_drop,
-                                    color: isSelected ? Colors.white : AppTheme.textMuted,
-                                    size: 24,
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    opt['label'],
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                      color: isSelected ? Colors.white : AppTheme.textWhite,
-                                    ),
-                                  ),
-                                ],
-                              ),
+                        child: Container(
+                          height: 84,
+                          margin: const EdgeInsets.symmetric(horizontal: 6),
+                          decoration: BoxDecoration(
+                            color: isSelected ? AppTheme.primaryBlue : const Color(0xFF111E2E),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: isSelected ? Colors.transparent : AppTheme.borderDark,
+                              width: 1.0,
                             ),
-                            
-                            // Popular Badge
-                            if (opt['isPopular'])
-                              Positioned(
-                                top: -8,
-                                right: -4,
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: isSelected ? Colors.white : AppTheme.primaryBlue,
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  child: Text(
-                                    'POPULAR',
-                                    style: TextStyle(
-                                      fontSize: 7,
-                                      fontWeight: FontWeight.bold,
-                                      color: isSelected ? AppTheme.primaryBlue : Colors.white,
+                          ),
+                          child: Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.water_drop_outlined,
+                                      color: isSelected ? const Color(0xFF09121F) : AppTheme.textMuted,
+                                      size: 24,
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      opt['label'],
+                                      style: TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.bold,
+                                        color: isSelected ? const Color(0xFF09121F) : AppTheme.textWhite,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              
+                              // Popular Badge
+                              if (opt['isPopular'])
+                                Positioned(
+                                  top: 6,
+                                  right: 6,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: isSelected 
+                                          ? const Color(0xFF0D1C2E).withOpacity(0.18) 
+                                          : AppTheme.primaryBlue,
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(
+                                      'POPULAR',
+                                      style: TextStyle(
+                                        fontSize: 7,
+                                        fontWeight: FontWeight.bold,
+                                        color: isSelected ? const Color(0xFF09121F) : Colors.white,
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                     );
@@ -504,15 +509,27 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                             MaterialPageRoute(builder: (context) => const ClientConfirmScreen()),
                           );
                         },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF3498DB), // Sky blue background
+                    foregroundColor: const Color(0xFF09121F), // Dark navy text
+                    elevation: 0,
+                    minimumSize: const Size(double.infinity, 56),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.local_shipping, size: 20),
+                      const Icon(Icons.local_shipping, size: 20, color: Color(0xFF09121F)),
                       const SizedBox(width: 10),
                       Text(
                         appState.activeOrder != null 
                             ? 'Ver Pedido en Curso' 
                             : 'Confirmar Pedido Premium',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF09121F),
+                        ),
                       ),
                     ],
                   ),
@@ -574,7 +591,7 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
         Text(
           value,
           style: TextStyle(
-            color: AppTheme.textWhite,
+            color: isTotal ? AppTheme.primaryBlue : AppTheme.textWhite,
             fontSize: isTotal ? 16 : 13,
             fontWeight: FontWeight.bold,
           ),
