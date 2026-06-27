@@ -1,0 +1,342 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../models/order.dart';
+import '../../state/app_state.dart';
+import '../../theme.dart';
+import '../../widgets/mock_map.dart';
+import 'driver_active_order_screen.dart';
+import 'driver_earnings_screen.dart';
+import 'driver_profile_screen.dart';
+
+class DriverHomeScreen extends StatefulWidget {
+  const DriverHomeScreen({Key? key}) : super(key: key);
+
+  @override
+  State<DriverHomeScreen> createState() => _DriverHomeScreenState();
+}
+
+class _DriverHomeScreenState extends State<DriverHomeScreen> {
+  int _selectedIndex = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final appState = context.watch<AppState>();
+
+    // Determine target body
+    Widget body;
+    if (_selectedIndex == 0) {
+      body = _buildHomeTab(context, appState);
+    } else if (_selectedIndex == 1) {
+      body = const DriverEarningsScreen();
+    } else {
+      body = const DriverProfileScreen();
+    }
+
+    return Theme(
+      data: AppTheme.driverTheme,
+      child: Scaffold(
+        backgroundColor: AppTheme.backgroundDark,
+        bottomNavigationBar: Container(
+          decoration: const BoxDecoration(
+            border: Border(top: BorderSide(color: AppTheme.borderDark, width: 1)),
+          ),
+          child: BottomNavigationBar(
+            currentIndex: _selectedIndex,
+            onTap: (index) {
+              setState(() {
+                _selectedIndex = index;
+              });
+            },
+            type: BottomNavigationBarType.fixed,
+            backgroundColor: AppTheme.backgroundDark,
+            selectedItemColor: AppTheme.primaryBlue,
+            unselectedItemColor: AppTheme.textMuted,
+            selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+            unselectedLabelStyle: const TextStyle(fontSize: 11),
+            items: const [
+              BottomNavigationBarItem(
+                icon: Icon(Icons.navigation_outlined),
+                activeIcon: Icon(Icons.navigation),
+                label: 'Servicio',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.payments_outlined),
+                activeIcon: Icon(Icons.payments),
+                label: 'Ganancias',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.person_outline),
+                activeIcon: Icon(Icons.person),
+                label: 'Perfil',
+              ),
+            ],
+          ),
+        ),
+        body: body,
+      ),
+    );
+  }
+
+  Widget _buildHomeTab(BuildContext context, AppState appState) {
+    final hasRequests = appState.pendingDriverRequests.isNotEmpty;
+    final incomingRequest = hasRequests ? appState.pendingDriverRequests.first : null;
+    
+    // Automatically transition to Active Order Screen if accepted
+    if (appState.activeOrder != null && 
+        (appState.activeOrder!.status == OrderStatus.accepted || 
+         appState.activeOrder!.status == OrderStatus.inTransit)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const DriverActiveOrderScreen()),
+        );
+      });
+    }
+
+    return Stack(
+      children: [
+        // Map Widget filling the screen
+        const Positioned.fill(
+          child: MockMapWidget(showRoute: false),
+        ),
+
+        // Availability switcher HUD
+        Positioned(
+          top: MediaQuery.of(context).padding.top + 12,
+          left: 16,
+          right: 16,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // Availability status
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppTheme.cardDark.withOpacity(0.92),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: AppTheme.borderDark),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 10,
+                      height: 10,
+                      decoration: BoxDecoration(
+                        color: appState.isDriverAvailable ? AppTheme.success : AppTheme.error,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      appState.isDriverAvailable ? 'Disponible' : 'No disponible',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.textWhite),
+                    ),
+                    const SizedBox(width: 8),
+                    Switch(
+                      value: appState.isDriverAvailable,
+                      onChanged: (val) {
+                        appState.toggleDriverAvailability();
+                      },
+                      activeThumbImage: null, // default
+                      activeColor: AppTheme.success,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ],
+                ),
+              ),
+              
+              // Simulator Switch (swap back to Client)
+              ElevatedButton.icon(
+                onPressed: () {
+                  appState.setRole(AppRole.client);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Modo Cliente Activado')),
+                  );
+                  Navigator.pushNamedAndRemoveUntil(context, '/client_home', (route) => false);
+                },
+                icon: const Icon(Icons.swap_horiz, size: 16),
+                label: const Text('Cliente'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primaryBlue,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(100, 36),
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // Incoming Request Card (Floating Sheet)
+        Positioned(
+          bottom: 16,
+          left: 16,
+          right: 16,
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 300),
+            child: incomingRequest != null && appState.isDriverAvailable
+                ? Container(
+                    key: ValueKey(incomingRequest.id),
+                    padding: const EdgeInsets.all(20.0),
+                    decoration: BoxDecoration(
+                      color: AppTheme.cardDark,
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(color: AppTheme.primaryBlue, width: 2),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.3),
+                          blurRadius: 20,
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: AppTheme.primaryBlue.withOpacity(0.12),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.notifications_active, color: AppTheme.primaryBlue),
+                            ),
+                            const SizedBox(width: 12),
+                            const Expanded(
+                              child: Text(
+                                '¡Nueva Solicitud Recibida!',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppTheme.textWhite,
+                                ),
+                              ),
+                            ),
+                            Text(
+                              '\$${incomingRequest.price.toInt()}',
+                              style: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: AppTheme.primaryBlue,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const Divider(height: 24, color: AppTheme.borderDark),
+                        
+                        // Customer info
+                        Row(
+                          children: [
+                            const Icon(Icons.person_outline, size: 18, color: AppTheme.textMuted),
+                            const SizedBox(width: 8),
+                            const Text('Cliente: ', style: TextStyle(color: AppTheme.textMuted, fontSize: 13)),
+                            Text(appState.userName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.textWhite)),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        
+                        // Volume info
+                        Row(
+                          children: [
+                            const Icon(Icons.water_drop_outlined, size: 18, color: AppTheme.textMuted),
+                            const SizedBox(width: 8),
+                            const Text('Volumen: ', style: TextStyle(color: AppTheme.textMuted, fontSize: 13)),
+                            Text('${incomingRequest.liters} Litros', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.textWhite)),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        
+                        // Delivery address
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(Icons.location_on_outlined, size: 18, color: AppTheme.textMuted),
+                            const SizedBox(width: 8),
+                            const Text('Destino: ', style: TextStyle(color: AppTheme.textMuted, fontSize: 13)),
+                            Expanded(
+                              child: Text(
+                                incomingRequest.address,
+                                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: AppTheme.textWhite),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 20),
+                        
+                        // Action buttons
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () {
+                                  appState.driverRejectOrder(incomingRequest);
+                                },
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: AppTheme.error,
+                                  side: const BorderSide(color: AppTheme.error),
+                                  minimumSize: const Size(0, 48),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                                child: const Text('Rechazar', style: TextStyle(fontWeight: FontWeight.bold)),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: () {
+                                  appState.driverAcceptOrder(incomingRequest);
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(builder: (context) => const DriverActiveOrderScreen()),
+                                  );
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppTheme.primaryBlue,
+                                  minimumSize: const Size(0, 48),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                                child: const Text('Aceptar', style: TextStyle(fontWeight: FontWeight.bold)),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  )
+                : Container(
+                    padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+                    decoration: BoxDecoration(
+                      color: AppTheme.cardDark,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: AppTheme.borderDark),
+                      boxShadow: [
+                        BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 10),
+                      ],
+                    ),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.primaryBlue),
+                        ),
+                        SizedBox(width: 12),
+                        Text(
+                          'Esperando solicitudes de cisternas...',
+                          style: TextStyle(color: AppTheme.textMuted, fontSize: 13, fontWeight: FontWeight.w500),
+                        ),
+                      ],
+                    ),
+                  ),
+          ),
+        ),
+      ],
+    );
+  }
+}
