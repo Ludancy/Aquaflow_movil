@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import '../../services/api_service.dart';
 import '../../state/app_state.dart';
 import '../../theme.dart';
-import 'register_screen.dart';
 import '../client/client_home_screen.dart';
 import '../driver/driver_home_screen.dart';
 
@@ -21,11 +20,24 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
+
+  // Controllers for Login & Register
   final _idController = TextEditingController();
   final _pinController = TextEditingController();
   final _otpController = TextEditingController();
+  
+  // Registration fields
+  final _nameController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _taxIdController = TextEditingController();
+  final _licenseController = TextEditingController();
+  final _truckBrandController = TextEditingController();
+  final _truckModelController = TextEditingController();
+  final _truckPlateController = TextEditingController();
+  final _truckCapacityController = TextEditingController();
 
   bool _isDriver = true;
+  bool _isRegisterMode = false; // false = Login, true = Register
   bool _rememberMe = true;
   bool _obscurePin = true;
   bool _isLoading = false;
@@ -42,15 +54,129 @@ class _LoginScreenState extends State<LoginScreen> {
     _idController.dispose();
     _pinController.dispose();
     _otpController.dispose();
+    _nameController.dispose();
+    _emailController.dispose();
+    _taxIdController.dispose();
+    _licenseController.dispose();
+    _truckBrandController.dispose();
+    _truckModelController.dispose();
+    _truckPlateController.dispose();
+    _truckCapacityController.dispose();
     super.dispose();
   }
 
-  void _handleLogin() async {
+  void _handleSubmit() async {
     if (!_formKey.currentState!.validate()) return;
 
     final appState = context.read<AppState>();
     appState.setRole(_isDriver ? AppRole.driver : AppRole.client);
 
+    if (_isRegisterMode) {
+      _handleRegister(appState);
+    } else {
+      _handleLogin(appState);
+    }
+  }
+
+  void _handleRegister(AppState appState) async {
+    setState(() => _isLoading = true);
+
+    final phone = _idController.text.trim();
+    final name = _nameController.text.trim();
+    final email = _emailController.text.trim();
+    final taxId = _taxIdController.text.trim();
+
+    if (!_isDriver) {
+      // Register Client
+      if (appState.isBackendConnected) {
+        final res = await ApiService.registerClient(
+          nombre: name,
+          telefono: phone,
+          email: email.isNotEmpty ? email : 'cliente_$phone@aquaflow.com',
+          identificacionFiscal: taxId.isNotEmpty ? taxId : 'J-$phone-0',
+        );
+        setState(() => _isLoading = false);
+
+        if (res != null && res['data'] != null) {
+          final data = res['data'];
+          final usuario = data['usuario'];
+          appState.setCurrentUser(usuario, 'cliente');
+        } else {
+          appState.userName = name;
+          appState.userPhone = phone;
+          appState.userEmail = email;
+        }
+      } else {
+        setState(() => _isLoading = false);
+        appState.userName = name;
+        appState.userPhone = phone;
+        appState.userEmail = email;
+      }
+
+      if (context.mounted) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const ClientHomeScreen()),
+          (route) => false,
+        );
+      }
+    } else {
+      // Driver Onboarding
+      final license = _licenseController.text.trim();
+      final brand = _truckBrandController.text.trim();
+      final model = _truckModelController.text.trim();
+      final plate = _truckPlateController.text.trim();
+      final capacity = double.tryParse(_truckCapacityController.text.trim()) ?? 10000.0;
+
+      if (appState.isBackendConnected) {
+        final res = await ApiService.driverOnboarding(
+          nombre: name,
+          telefono: phone,
+          email: email.isNotEmpty ? email : 'cisternero_$phone@aquaflow.com',
+          licenciaConducir: license.isNotEmpty ? license : 'L-$phone',
+          rifPersonal: taxId.isNotEmpty ? taxId : 'V-$phone',
+          vehiculo: {
+            'marca': brand.isNotEmpty ? brand : 'Ford',
+            'modelo': model.isNotEmpty ? model : 'F-350',
+            'placa': plate.isNotEmpty ? plate : 'A12B34',
+            'capacidad_tanque': capacity,
+          },
+        );
+        setState(() => _isLoading = false);
+
+        if (res != null && res['data'] != null) {
+          final data = res['data'];
+          final usuario = data['usuario'];
+          appState.setCurrentUser(usuario, 'cisternero');
+          appState.driverTruck = '$brand $model';
+          appState.driverPlate = plate;
+        } else {
+          appState.driverName = name;
+          appState.driverPhone = phone;
+          appState.driverEmail = email;
+          appState.driverTruck = '$brand $model';
+          appState.driverPlate = plate;
+        }
+      } else {
+        setState(() => _isLoading = false);
+        appState.driverName = name;
+        appState.driverPhone = phone;
+        appState.driverEmail = email;
+        appState.driverTruck = '$brand $model';
+        appState.driverPlate = plate;
+      }
+
+      if (context.mounted) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const DriverHomeScreen()),
+          (route) => false,
+        );
+      }
+    }
+  }
+
+  void _handleLogin(AppState appState) async {
     final inputId = _idController.text.trim();
 
     if (appState.isBackendConnected) {
@@ -198,6 +324,62 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String label,
+    required String hint,
+    required IconData icon,
+    TextInputType keyboardType = TextInputType.text,
+    bool isRequired = true,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: AppTheme.textMuted,
+          ),
+        ),
+        const SizedBox(height: 6),
+        TextFormField(
+          controller: controller,
+          keyboardType: keyboardType,
+          style: const TextStyle(color: Colors.white, fontSize: 14),
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+            prefixIcon: Icon(icon, color: AppTheme.textMuted, size: 20),
+            filled: true,
+            fillColor: const Color(0xFF131F30),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFF22354E)),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFF22354E)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFF3498DB)),
+            ),
+          ),
+          validator: isRequired
+              ? (val) {
+                  if (val == null || val.isEmpty) return 'Campo requerido';
+                  return null;
+                }
+              : null,
+        ),
+        const SizedBox(height: 16),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -246,9 +428,9 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 const SizedBox(height: 4),
-                const Text(
-                  'CISTERNA OPERATIONS',
-                  style: TextStyle(
+                Text(
+                  _isRegisterMode ? 'REGISTRO DE USUARIO' : 'CISTERNA OPERATIONS',
+                  style: const TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
                     color: Color(0xFF00B4D8),
@@ -293,7 +475,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
-                                // Tab Switcher (Cliente vs Empleado)
+                                // Role Switcher (Cliente vs Empleado)
                                 Container(
                                   padding: const EdgeInsets.all(4),
                                   decoration: BoxDecoration(
@@ -354,146 +536,258 @@ class _LoginScreenState extends State<LoginScreen> {
                                     ],
                                   ),
                                 ),
-                                const SizedBox(height: 24),
-
-                                // Cédula / ID Field
-                                Text(
-                                  _isDriver ? 'Cédula / ID de Empleado' : 'Cédula / Teléfono de Cliente',
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppTheme.textMuted,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                TextFormField(
-                                  controller: _idController,
-                                  style: const TextStyle(color: Colors.white, fontSize: 14),
-                                  decoration: InputDecoration(
-                                    hintText: _isDriver ? 'e.g. V-12345678' : 'e.g. 04121234567',
-                                    hintStyle: TextStyle(color: Colors.grey.shade600, fontSize: 13),
-                                    prefixIcon: const Icon(Icons.badge_outlined, color: AppTheme.textMuted, size: 20),
-                                    filled: true,
-                                    fillColor: const Color(0xFF131F30),
-                                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                      borderSide: const BorderSide(color: Color(0xFF22354E)),
-                                    ),
-                                    enabledBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                      borderSide: const BorderSide(color: Color(0xFF22354E)),
-                                    ),
-                                    focusedBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                      borderSide: const BorderSide(color: Color(0xFF3498DB)),
-                                    ),
-                                  ),
-                                  validator: (val) {
-                                    if (val == null || val.isEmpty) return 'Campo requerido';
-                                    return null;
-                                  },
-                                ),
                                 const SizedBox(height: 20),
 
-                                // PIN / Contraseña Field Header with Restablecer link
+                                // Mode Selector: Ingresar vs Registrarse
                                 Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    const Text(
-                                      'PIN de Seguridad / Contraseña',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
-                                        color: AppTheme.textMuted,
+                                    GestureDetector(
+                                      onTap: () => setState(() => _isRegisterMode = false),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                                        decoration: BoxDecoration(
+                                          border: Border(
+                                            bottom: BorderSide(
+                                              color: !_isRegisterMode ? const Color(0xFF3498DB) : Colors.transparent,
+                                              width: 2,
+                                            ),
+                                          ),
+                                        ),
+                                        child: Text(
+                                          'Iniciar Sesión',
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.bold,
+                                            color: !_isRegisterMode ? const Color(0xFF3498DB) : AppTheme.textMuted,
+                                          ),
+                                        ),
                                       ),
                                     ),
+                                    const SizedBox(width: 16),
                                     GestureDetector(
-                                      onTap: () {
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          const SnackBar(content: Text('Contacte al administrador para restablecer su PIN.')),
-                                        );
-                                      },
-                                      child: const Text(
-                                        'Restablecer',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.bold,
-                                          color: Color(0xFF3498DB),
+                                      onTap: () => setState(() => _isRegisterMode = true),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                                        decoration: BoxDecoration(
+                                          border: Border(
+                                            bottom: BorderSide(
+                                              color: _isRegisterMode ? const Color(0xFF3498DB) : Colors.transparent,
+                                              width: 2,
+                                            ),
+                                          ),
+                                        ),
+                                        child: Text(
+                                          'Registrarse',
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.bold,
+                                            color: _isRegisterMode ? const Color(0xFF3498DB) : AppTheme.textMuted,
+                                          ),
                                         ),
                                       ),
                                     ),
                                   ],
                                 ),
-                                const SizedBox(height: 8),
-                                TextFormField(
-                                  controller: _pinController,
-                                  obscureText: _obscurePin,
-                                  style: const TextStyle(color: Colors.white, fontSize: 14),
-                                  decoration: InputDecoration(
-                                    hintText: '••••••••',
-                                    hintStyle: TextStyle(color: Colors.grey.shade600, fontSize: 16),
-                                    prefixIcon: const Icon(Icons.lock_outline, color: AppTheme.textMuted, size: 20),
-                                    suffixIcon: IconButton(
-                                      icon: Icon(
-                                        _obscurePin ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                                        color: AppTheme.textMuted,
-                                        size: 20,
-                                      ),
-                                      onPressed: () {
-                                        setState(() => _obscurePin = !_obscurePin);
-                                      },
-                                    ),
-                                    filled: true,
-                                    fillColor: const Color(0xFF131F30),
-                                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                      borderSide: const BorderSide(color: Color(0xFF22354E)),
-                                    ),
-                                    enabledBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                      borderSide: const BorderSide(color: Color(0xFF22354E)),
-                                    ),
-                                    focusedBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                      borderSide: const BorderSide(color: Color(0xFF3498DB)),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
+                                const SizedBox(height: 20),
 
-                                // Checkbox: Mantener sesión iniciada
-                                Row(
-                                  children: [
-                                    SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: Checkbox(
-                                        value: _rememberMe,
-                                        activeColor: const Color(0xFF3498DB),
-                                        onChanged: (val) {
-                                          setState(() => _rememberMe = val ?? true);
-                                        },
-                                        side: const BorderSide(color: Color(0xFF22354E)),
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                                // REGISTRATION EXTRA FIELDS
+                                if (_isRegisterMode) ...[
+                                  _buildTextField(
+                                    controller: _nameController,
+                                    label: 'Nombre Completo',
+                                    hint: 'e.g. Juan Pérez',
+                                    icon: Icons.person_outline,
+                                  ),
+                                  _buildTextField(
+                                    controller: _emailController,
+                                    label: 'Correo Electrónico',
+                                    hint: 'e.g. juan@ejemplo.com',
+                                    icon: Icons.email_outlined,
+                                    keyboardType: TextInputType.emailAddress,
+                                    isRequired: false,
+                                  ),
+                                  _buildTextField(
+                                    controller: _taxIdController,
+                                    label: _isDriver ? 'RIF Personal / Cédula' : 'Identificación Fiscal / RIF',
+                                    hint: _isDriver ? 'e.g. V-12345678' : 'e.g. J-12345678-0',
+                                    icon: Icons.assignment_ind_outlined,
+                                  ),
+
+                                  if (_isDriver) ...[
+                                    _buildTextField(
+                                      controller: _licenseController,
+                                      label: 'Licencia de Conducir',
+                                      hint: 'e.g. L-87654321',
+                                      icon: Icons.badge_outlined,
+                                    ),
+                                    const Divider(height: 24, color: Color(0xFF22354E)),
+                                    const Text(
+                                      'DATOS DE LA CISTERNA',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                        color: Color(0xFF00B4D8),
+                                        letterSpacing: 1.0,
                                       ),
                                     ),
-                                    const SizedBox(width: 10),
-                                    const Text(
-                                      'Mantener sesión iniciada',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: AppTheme.textMuted,
-                                      ),
+                                    const SizedBox(height: 12),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: _buildTextField(
+                                            controller: _truckBrandController,
+                                            label: 'Marca',
+                                            hint: 'Ford',
+                                            icon: Icons.directions_bus_outlined,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: _buildTextField(
+                                            controller: _truckModelController,
+                                            label: 'Modelo',
+                                            hint: 'F-350',
+                                            icon: Icons.local_shipping_outlined,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: _buildTextField(
+                                            controller: _truckPlateController,
+                                            label: 'Placa',
+                                            hint: 'A12B34',
+                                            icon: Icons.subtitles_outlined,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: _buildTextField(
+                                            controller: _truckCapacityController,
+                                            label: 'Capacidad (Lts)',
+                                            hint: '10000',
+                                            icon: Icons.opacity_outlined,
+                                            keyboardType: TextInputType.number,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ],
+                                ],
+
+                                // PHONE / ID FIELD
+                                _buildTextField(
+                                  controller: _idController,
+                                  label: _isDriver ? 'Teléfono de Contacto' : 'Número de Teléfono',
+                                  hint: '04121234567',
+                                  icon: Icons.phone_outlined,
+                                  keyboardType: TextInputType.phone,
                                 ),
+
+                                // PIN / LOGIN PASSWORD FIELDS
+                                if (!_isRegisterMode) ...[
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      const Text(
+                                        'PIN de Seguridad / Contraseña',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                          color: AppTheme.textMuted,
+                                        ),
+                                      ),
+                                      GestureDetector(
+                                        onTap: () {
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            const SnackBar(content: Text('Contacte al administrador para restablecer su PIN.')),
+                                          );
+                                        },
+                                        child: const Text(
+                                          'Restablecer',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.bold,
+                                            color: Color(0xFF3498DB),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  TextFormField(
+                                    controller: _pinController,
+                                    obscureText: _obscurePin,
+                                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                                    decoration: InputDecoration(
+                                      hintText: '••••••••',
+                                      hintStyle: TextStyle(color: Colors.grey.shade600, fontSize: 16),
+                                      prefixIcon: const Icon(Icons.lock_outline, color: AppTheme.textMuted, size: 20),
+                                      suffixIcon: IconButton(
+                                        icon: Icon(
+                                          _obscurePin ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                                          color: AppTheme.textMuted,
+                                          size: 20,
+                                        ),
+                                        onPressed: () {
+                                          setState(() => _obscurePin = !_obscurePin);
+                                        },
+                                      ),
+                                      filled: true,
+                                      fillColor: const Color(0xFF131F30),
+                                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: const BorderSide(color: Color(0xFF22354E)),
+                                      ),
+                                      enabledBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: const BorderSide(color: Color(0xFF22354E)),
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: const BorderSide(color: Color(0xFF3498DB)),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16),
+
+                                  // Checkbox: Mantener sesión iniciada
+                                  Row(
+                                    children: [
+                                      SizedBox(
+                                        width: 20,
+                                        height: 20,
+                                        child: Checkbox(
+                                          value: _rememberMe,
+                                          activeColor: const Color(0xFF3498DB),
+                                          onChanged: (val) {
+                                            setState(() => _rememberMe = val ?? true);
+                                          },
+                                          side: const BorderSide(color: Color(0xFF22354E)),
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      const Text(
+                                        'Mantener sesión iniciada',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: AppTheme.textMuted,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+
                                 const SizedBox(height: 24),
 
-                                // Main Iniciar Turno Button
+                                // Main Action Button
                                 ElevatedButton(
-                                  onPressed: _isLoading ? null : _handleLogin,
+                                  onPressed: _isLoading ? null : _handleSubmit,
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: const Color(0xFF3498DB),
                                     foregroundColor: Colors.white,
@@ -513,21 +807,45 @@ class _LoginScreenState extends State<LoginScreen> {
                                           mainAxisAlignment: MainAxisAlignment.center,
                                           children: [
                                             Text(
-                                              _isDriver ? 'Iniciar Turno' : 'Ingresar al Sistema',
+                                              _isRegisterMode
+                                                  ? 'Completar Registro e Iniciar'
+                                                  : (_isDriver ? 'Iniciar Turno' : 'Ingresar al Sistema'),
                                               style: const TextStyle(
-                                                fontSize: 16,
+                                                fontSize: 15,
                                                 fontWeight: FontWeight.bold,
                                               ),
                                             ),
                                             const SizedBox(width: 8),
                                             Icon(
-                                              _isDriver ? Icons.local_shipping_outlined : Icons.arrow_forward,
+                                              _isRegisterMode
+                                                  ? Icons.person_add_outlined
+                                                  : (_isDriver ? Icons.local_shipping_outlined : Icons.arrow_forward),
                                               size: 20,
                                             ),
                                           ],
                                         ),
                                 ),
                                 const SizedBox(height: 18),
+
+                                // Link to switch modes
+                                Center(
+                                  child: GestureDetector(
+                                    onTap: () {
+                                      setState(() => _isRegisterMode = !_isRegisterMode);
+                                    },
+                                    child: Text(
+                                      _isRegisterMode
+                                          ? '¿Ya tienes una cuenta? Iniciar Sesión'
+                                          : '¿No tienes cuenta? Registrarse aquí',
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                        color: Color(0xFF3498DB),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
 
                                 // Status Indicator
                                 Row(
