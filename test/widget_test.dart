@@ -4,14 +4,14 @@ import 'package:aguaexpress/main.dart';
 import 'package:aguaexpress/state/app_state.dart';
 
 void main() {
-  testWidgets('AguaExpressApp smoke test', (WidgetTester tester) async {
+  testWidgets('AquaFlowApp smoke test', (WidgetTester tester) async {
     await tester.pumpWidget(
       ChangeNotifierProvider(
         create: (context) => AppState(),
-        child: const AguaExpressApp(),
+        child: const AquaFlowApp(),
       ),
     );
 
-    expect(find.text('AguaExpress'), findsOneWidget);
+    expect(find.text('AquaFlow'), findsOneWidget);
   });
 }

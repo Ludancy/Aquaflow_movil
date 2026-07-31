@@ -7,6 +7,8 @@ import 'auth/login_screen.dart';
 import 'client/client_home_screen.dart';
 import 'driver/driver_home_screen.dart';
 
+import '../widgets/aquaflow_logo.dart';
+
 class WelcomeScreen extends StatefulWidget {
   const WelcomeScreen({Key? key}) : super(key: key);
 
@@ -39,37 +41,9 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
               children: [
                 const SizedBox(height: 48),
                 
-                // AquaFlow Logo (Circular drop icon)
-                Center(
-                  child: Container(
-                    width: 100,
-                    height: 100,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF162A43),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: AppTheme.primaryBlue.withOpacity(0.3), width: 3),
-                    ),
-                    child: Center(
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          Container(
-                            width: 60,
-                            height: 60,
-                            decoration: BoxDecoration(
-                              color: AppTheme.primaryBlue.withOpacity(0.15),
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          const Icon(
-                            Icons.water_drop,
-                            size: 40,
-                            color: AppTheme.primaryBlue,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
+                // AquaFlow Logo (Wave icon)
+                const Center(
+                  child: AquaFlowLogo(size: 95),
                 ),
                 
                 const SizedBox(height: 16),

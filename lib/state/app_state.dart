@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/order.dart';
+import '../services/api_service.dart';
 
 enum AppRole {
   client,
@@ -8,6 +9,25 @@ enum AppRole {
 }
 
 class AppState extends ChangeNotifier {
+  // Backend Integration State
+  bool isBackendConnected = false;
+  String? activeTarifaId;
+
+  AppState() {
+    initBackendConnection();
+  }
+
+  Future<void> initBackendConnection() async {
+    isBackendConnected = await ApiService.checkHealth();
+    if (isBackendConnected) {
+      final tarifas = await ApiService.getTarifas();
+      if (tarifas.isNotEmpty) {
+        activeTarifaId = tarifas.first['id_tarifa'];
+      }
+    }
+    notifyListeners();
+  }
+
   // Global Role
   AppRole _currentRole = AppRole.client;
   AppRole get currentRole => _currentRole;
@@ -119,7 +139,7 @@ class AppState extends ChangeNotifier {
   }
 
   // Create order from client
-  void createOrder() {
+  void createOrder() async {
     activeOrder = WaterOrder(
       id: '${selectedLiters}L Cisterna',
       dateTime: DateTime.now(),
@@ -136,6 +156,15 @@ class AppState extends ChangeNotifier {
     // Add to driver's pending list to simulate incoming request
     pendingDriverRequests.clear();
     pendingDriverRequests.add(activeOrder!);
+
+    if (isBackendConnected && activeTarifaId != null) {
+      // Send request to live backend server
+      ApiService.requestOrder(
+        clientId: 'cliente-id-placeholder',
+        tarifaId: activeTarifaId!,
+        destinationCoords: '10.48,-66.90',
+      );
+    }
     
     notifyListeners();
   }

@@ -19,6 +19,24 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   int _selectedIndex = 0;
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final appState = Provider.of<AppState>(context, listen: false);
+      if (appState.activeOrder != null && 
+          (appState.activeOrder!.status == OrderStatus.accepted || 
+           appState.activeOrder!.status == OrderStatus.inTransit)) {
+        if (!DriverActiveOrderScreen.isOpen) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const DriverActiveOrderScreen()),
+          );
+        }
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final appState = context.watch<AppState>();
 
@@ -80,18 +98,6 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   Widget _buildHomeTab(BuildContext context, AppState appState) {
     final hasRequests = appState.pendingDriverRequests.isNotEmpty;
     final incomingRequest = hasRequests ? appState.pendingDriverRequests.first : null;
-    
-    // Automatically transition to Active Order Screen if accepted
-    if (appState.activeOrder != null && 
-        (appState.activeOrder!.status == OrderStatus.accepted || 
-         appState.activeOrder!.status == OrderStatus.inTransit)) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const DriverActiveOrderScreen()),
-        );
-      });
-    }
 
     return Stack(
       children: [
@@ -218,9 +224,9 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                             Text(
                               '\$${incomingRequest.price.toInt()}',
                               style: const TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                                color: AppTheme.primaryBlue,
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppTheme.primaryBlue,
                               ),
                             ),
                           ],
@@ -290,10 +296,12 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                               child: ElevatedButton(
                                 onPressed: () {
                                   appState.driverAcceptOrder(incomingRequest);
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(builder: (context) => const DriverActiveOrderScreen()),
-                                  );
+                                  if (!DriverActiveOrderScreen.isOpen) {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(builder: (context) => const DriverActiveOrderScreen()),
+                                    );
+                                  }
                                 },
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: AppTheme.primaryBlue,
@@ -308,32 +316,146 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                       ],
                     ),
                   )
-                : Container(
-                    padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
-                    decoration: BoxDecoration(
-                      color: AppTheme.cardDark,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: AppTheme.borderDark),
-                      boxShadow: [
-                        BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 10),
-                      ],
-                    ),
-                    child: const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.primaryBlue),
+                : appState.activeOrder != null
+                    ? Container(
+                        key: const ValueKey('active_order_card'),
+                        padding: const EdgeInsets.all(20.0),
+                        decoration: BoxDecoration(
+                          color: AppTheme.cardDark,
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(color: AppTheme.success.withOpacity(0.5), width: 1.5),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.3),
+                              blurRadius: 20,
+                            ),
+                          ],
                         ),
-                        SizedBox(width: 12),
-                        Text(
-                          'Esperando solicitudes de cisternas...',
-                          style: TextStyle(color: AppTheme.textMuted, fontSize: 13, fontWeight: FontWeight.w500),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.success.withOpacity(0.12),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(Icons.local_shipping_outlined, color: AppTheme.success),
+                                ),
+                                const SizedBox(width: 12),
+                                const Expanded(
+                                  child: Text(
+                                    'Viaje en Curso',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppTheme.textWhite,
+                                    ),
+                                  ),
+                                ),
+                                Text(
+                                  '\$${appState.activeOrder!.price.toInt()}',
+                                  style: const TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppTheme.success,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const Divider(height: 24, color: AppTheme.borderDark),
+                            
+                            // Customer info
+                            Row(
+                              children: [
+                                const Icon(Icons.person_outline, size: 18, color: AppTheme.textMuted),
+                                const SizedBox(width: 8),
+                                const Text('Cliente: ', style: TextStyle(color: AppTheme.textMuted, fontSize: 13)),
+                                Text(appState.userName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.textWhite)),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            
+                            // Volume info
+                            Row(
+                              children: [
+                                const Icon(Icons.water_drop_outlined, size: 18, color: AppTheme.textMuted),
+                                const SizedBox(width: 8),
+                                const Text('Volumen: ', style: TextStyle(color: AppTheme.textMuted, fontSize: 13)),
+                                Text('${appState.activeOrder!.liters} Litros', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.textWhite)),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            
+                            // Delivery address
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Icon(Icons.location_on_outlined, size: 18, color: AppTheme.textMuted),
+                                const SizedBox(width: 8),
+                                const Text('Destino: ', style: TextStyle(color: AppTheme.textMuted, fontSize: 13)),
+                                Expanded(
+                                  child: Text(
+                                    appState.activeOrder!.address,
+                                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: AppTheme.textWhite),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 20),
+                            
+                            // Action button to view route
+                            ElevatedButton(
+                              onPressed: () {
+                                if (!DriverActiveOrderScreen.isOpen) {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(builder: (context) => const DriverActiveOrderScreen()),
+                                  );
+                                }
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppTheme.primaryBlue,
+                                minimumSize: const Size(double.infinity, 48),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                              child: const Text('Ver Ruta de Entrega', style: TextStyle(fontWeight: FontWeight.bold)),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                  ),
+                      )
+                    : Container(
+                        key: const ValueKey('no_order_card'),
+                        padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+                        decoration: BoxDecoration(
+                          color: AppTheme.cardDark,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: AppTheme.borderDark),
+                          boxShadow: [
+                            BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 10),
+                          ],
+                        ),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.primaryBlue),
+                            ),
+                            SizedBox(width: 12),
+                            Text(
+                              'Esperando solicitudes de cisternas...',
+                              style: TextStyle(color: AppTheme.textMuted, fontSize: 13, fontWeight: FontWeight.w500),
+                            ),
+                          ],
+                        ),
+                      ),
           ),
         ),
       ],

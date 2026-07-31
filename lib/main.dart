@@ -11,18 +11,18 @@ void main() {
   runApp(
     ChangeNotifierProvider(
       create: (context) => AppState(),
-      child: const AguaExpressApp(),
+      child: const AquaFlowApp(),
     ),
   );
 }
 
-class AguaExpressApp extends StatelessWidget {
-  const AguaExpressApp({Key? key}) : super(key: key);
+class AquaFlowApp extends StatelessWidget {
+  const AquaFlowApp({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'AguaExpress',
+      title: 'AquaFlow',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.clientTheme, // Default theme is client, dynamically switches if needed
       home: const WelcomeScreen(),

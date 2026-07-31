@@ -6,8 +6,26 @@ import '../../theme.dart';
 import '../../widgets/mock_map.dart';
 import 'driver_home_screen.dart';
 
-class DriverActiveOrderScreen extends StatelessWidget {
+class DriverActiveOrderScreen extends StatefulWidget {
+  static bool isOpen = false;
   const DriverActiveOrderScreen({Key? key}) : super(key: key);
+
+  @override
+  State<DriverActiveOrderScreen> createState() => _DriverActiveOrderScreenState();
+}
+
+class _DriverActiveOrderScreenState extends State<DriverActiveOrderScreen> {
+  @override
+  void initState() {
+    super.initState();
+    DriverActiveOrderScreen.isOpen = true;
+  }
+
+  @override
+  void dispose() {
+    DriverActiveOrderScreen.isOpen = false;
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {

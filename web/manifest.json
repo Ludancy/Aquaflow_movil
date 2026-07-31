@@ -1,6 +1,6 @@
 {
-    "name": "aguaexpress",
-    "short_name": "aguaexpress",
+    "name": "AquaFlow",
+    "short_name": "AquaFlow",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
