@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../constants/bancos_venezuela.dart';
 import '../../services/geocoding_service.dart';
 import '../../state/app_state.dart';
 import '../../theme.dart';
@@ -162,6 +163,103 @@ class ClientProfileScreen extends StatelessWidget {
     );
   }
 
+  void _showPaymentMethodsDialog(BuildContext context, AppState appState) {
+    String selectedMethod = appState.paymentMethod;
+    String? selectedBanco = appState.preferredBancoEmisor;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          return AlertDialog(
+            backgroundColor: AppTheme.surfaceDark,
+            title: const Text('Métodos de Pago', style: TextStyle(color: AppTheme.textWhite)),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Elige tu método preferido para que quede listo la próxima vez que pidas agua.',
+                    style: TextStyle(color: AppTheme.textMuted, fontSize: 12),
+                  ),
+                  const SizedBox(height: 12),
+                  RadioListTile<String>(
+                    contentPadding: EdgeInsets.zero,
+                    activeColor: AppTheme.primaryBlue,
+                    title: const Text('Zelle', style: TextStyle(color: AppTheme.textWhite, fontSize: 13)),
+                    subtitle: Text(appState.paymentInfo?['zelle']?['email'] ?? '', style: const TextStyle(color: AppTheme.textMuted, fontSize: 11)),
+                    value: 'Zelle',
+                    groupValue: selectedMethod,
+                    onChanged: (value) => setDialogState(() => selectedMethod = value!),
+                  ),
+                  RadioListTile<String>(
+                    contentPadding: EdgeInsets.zero,
+                    activeColor: AppTheme.primaryBlue,
+                    title: const Text('Pago Móvil', style: TextStyle(color: AppTheme.textWhite, fontSize: 13)),
+                    subtitle: Text(
+                      appState.paymentInfo?['pago_movil']?['telefono'] != null
+                          ? '${appState.paymentInfo!['pago_movil']['telefono']} · ${appState.paymentInfo!['pago_movil']['banco']}'
+                          : '',
+                      style: const TextStyle(color: AppTheme.textMuted, fontSize: 11),
+                    ),
+                    value: 'Pago Movil',
+                    groupValue: selectedMethod,
+                    onChanged: (value) => setDialogState(() => selectedMethod = value!),
+                  ),
+                  RadioListTile<String>(
+                    contentPadding: EdgeInsets.zero,
+                    activeColor: AppTheme.primaryBlue,
+                    title: const Text('Binance Pay', style: TextStyle(color: AppTheme.textWhite, fontSize: 13)),
+                    subtitle: Text(
+                      appState.paymentInfo?['binance_pay']?['id'] != null
+                          ? 'Pay ID: ${appState.paymentInfo!['binance_pay']['id']}'
+                          : '',
+                      style: const TextStyle(color: AppTheme.textMuted, fontSize: 11),
+                    ),
+                    value: 'Binance Pay',
+                    groupValue: selectedMethod,
+                    onChanged: (value) => setDialogState(() => selectedMethod = value!),
+                  ),
+                  if (selectedMethod == 'Pago Movil') ...[
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      initialValue: selectedBanco,
+                      dropdownColor: AppTheme.cardDark,
+                      style: const TextStyle(color: AppTheme.textWhite, fontSize: 13),
+                      decoration: const InputDecoration(
+                        labelText: 'Banco desde el que sueles pagar',
+                        prefixIcon: Icon(Icons.account_balance_outlined, size: 18),
+                      ),
+                      items: bancosVenezuela
+                          .map((banco) => DropdownMenuItem(value: banco, child: Text(banco)))
+                          .toList(),
+                      onChanged: (value) => setDialogState(() => selectedBanco = value),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+              ElevatedButton(
+                onPressed: () async {
+                  await appState.savePreferredPaymentMethod(
+                    selectedMethod,
+                    bancoEmisor: selectedMethod == 'Pago Movil' ? selectedBanco : null,
+                  );
+                  if (ctx.mounted) Navigator.pop(ctx);
+                },
+                child: const Text('Guardar'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final appState = context.watch<AppState>();
@@ -253,8 +351,10 @@ class ClientProfileScreen extends StatelessWidget {
                 _ProfileItem(
                   icon: Icons.credit_card_outlined,
                   title: 'Métodos de pago',
-                  subtitle: 'Gestiona Zelle / Pago Móvil',
-                  onTap: () {},
+                  subtitle: appState.preferredBancoEmisor != null
+                      ? '${appState.paymentMethod} · ${appState.preferredBancoEmisor}'
+                      : 'Preferido: ${appState.paymentMethod}',
+                  onTap: () => _showPaymentMethodsDialog(context, appState),
                 ),
                 _ProfileItem(
                   icon: Icons.notifications_none_outlined,

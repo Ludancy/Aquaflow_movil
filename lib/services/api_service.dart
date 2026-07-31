@@ -454,6 +454,55 @@ class ApiService {
     return null;
   }
 
+  // Wallet: Get client wallet balance + recharge history (requiere sesión)
+  static Future<Map<String, dynamic>?> getClientWallet(String clientId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/api/v1/wallet/$clientId'),
+        headers: _authHeadersOnly,
+      );
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['data'];
+      }
+    } catch (e) {
+      debugPrint('Get client wallet error: $e');
+    }
+    return null;
+  }
+
+  // Wallet: Request a balance recharge (queda pendiente de verificación por un admin)
+  static Future<Map<String, dynamic>?> requestWalletRecharge({
+    required String clientId,
+    required String metodo,
+    required double monto,
+    String? referencia,
+    String? bancoEmisor,
+    String? comprobanteUrl,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/api/v1/wallet/recharge'),
+        headers: _headers,
+        body: jsonEncode({
+          'id_cliente': clientId,
+          'metodo': metodo,
+          'monto': monto,
+          if (referencia != null) 'referencia': referencia,
+          if (bancoEmisor != null) 'banco_emisor': bancoEmisor,
+          if (comprobanteUrl != null) 'comprobante_url': comprobanteUrl,
+        }),
+      );
+      return {
+        'statusCode': response.statusCode,
+        'data': jsonDecode(response.body),
+      };
+    } catch (e) {
+      debugPrint('Request wallet recharge error: $e');
+    }
+    return null;
+  }
+
   // Support: Rating (requiere sesión)
   static Future<Map<String, dynamic>?> submitRating({
     required String driverId,

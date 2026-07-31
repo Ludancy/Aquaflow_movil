@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../constants/bancos_venezuela.dart';
 import '../../state/app_state.dart';
 import '../../theme.dart';
 
@@ -45,7 +46,7 @@ class ClientWalletScreen extends StatelessWidget {
               child: Column(
                 children: [
                   const Text(
-                    'Saldo Disponible',
+                    'Saldo AquaFlow',
                     style: TextStyle(
                       color: AppTheme.textMuted,
                       fontSize: 13,
@@ -70,45 +71,37 @@ class ClientWalletScreen extends StatelessWidget {
                       fontSize: 14,
                     ),
                   ),
-                  const SizedBox(height: 24),
-                  
-                  // Reload & Withdraw buttons
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildWalletActionButton(
-                          icon: Icons.add_circle_outline,
-                          label: 'Recargar',
-                          backgroundColor: AppTheme.primaryBlue,
-                          textColor: Colors.white,
-                          onTap: () => _showRechargeDialog(context, appState),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: _buildWalletActionButton(
-                          icon: Icons.arrow_upward,
-                          label: 'Retirar',
-                          backgroundColor: const Color(0xFF0D1724),
-                          textColor: AppTheme.textWhite,
-                          onTap: () {},
-                        ),
-                      ),
-                    ],
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Recarga tu saldo y úsalo para pagar pedidos al instante, sin reingresar datos de pago cada vez.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: AppTheme.textMuted, fontSize: 11),
+                  ),
+                  const SizedBox(height: 20),
+
+                  SizedBox(
+                    width: double.infinity,
+                    child: _buildWalletActionButton(
+                      icon: Icons.add_circle_outline,
+                      label: 'Recargar Saldo',
+                      backgroundColor: AppTheme.primaryBlue,
+                      textColor: Colors.white,
+                      onTap: () => _showRechargeDialog(context, appState),
+                    ),
                   ),
                 ],
               ),
             ),
-            
+
             const SizedBox(height: 32),
-            
-            // Saved payment methods header
-            Row(
+
+            // Recharge history header
+            const Row(
               children: [
-                const Icon(Icons.credit_card, size: 20, color: AppTheme.primaryBlue),
-                const SizedBox(width: 8),
-                const Text(
-                  'Métodos de Pago Guardados',
+                Icon(Icons.history, size: 20, color: AppTheme.primaryBlue),
+                SizedBox(width: 8),
+                Text(
+                  'Historial de Recargas',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -118,205 +111,85 @@ class ClientWalletScreen extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 16),
-            
-            // Saved payment methods list
-            ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: appState.savedPaymentMethods.length,
-              itemBuilder: (context, index) {
-                final method = appState.savedPaymentMethods[index];
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: AppTheme.cardDark,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppTheme.borderDark),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF0D1724),
-                          shape: BoxShape.circle,
+
+            if (appState.clientWalletRecargas.isEmpty)
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: AppTheme.cardDark,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppTheme.borderDark),
+                ),
+                child: const Text(
+                  'Aún no has recargado saldo. Toca "Recargar Saldo" para empezar.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: AppTheme.textMuted, fontSize: 13),
+                ),
+              )
+            else
+              ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: appState.clientWalletRecargas.length,
+                itemBuilder: (context, index) {
+                  final recarga = appState.clientWalletRecargas[index];
+                  final estatus = recarga['estatus'] as String? ?? 'Pendiente';
+                  final color = estatus == 'Verificado'
+                      ? AppTheme.success
+                      : (estatus == 'Rechazado' ? AppTheme.error : Colors.amber);
+
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppTheme.cardDark,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppTheme.borderDark),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF0D1724),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(Icons.add_card_outlined, color: color, size: 20),
                         ),
-                        child: Center(
-                          child: Text(
-                            method['type'][0], // Show Z or P
-                            style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.textMuted),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Recarga · ${recarga['metodo']}',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                  color: AppTheme.textWhite,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                estatus,
+                                style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.bold),
+                              ),
+                            ],
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              method['type'],
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                                color: AppTheme.textWhite,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              method['detail'],
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: AppTheme.textMuted,
-                              ),
-                            ),
-                          ],
+                        Text(
+                          '+\$${(recarga['monto'] as num).toStringAsFixed(2)}',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15,
+                            color: AppTheme.textWhite,
+                          ),
                         ),
-                      ),
-                      if (method['checked'])
-                        const Icon(
-                          Icons.check_circle,
-                          color: AppTheme.success,
-                          size: 20,
-                        ),
-                    ],
-                  ),
-                );
-              },
-            ),
-            
-            // Add payment method dashed card
-            InkWell(
-              onTap: () {},
-              borderRadius: BorderRadius.circular(16),
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: AppTheme.borderDark,
-                    width: 1.5,
-                    style: BorderStyle.solid, // solid fallback
-                  ),
-                ),
-                child: const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.add, color: AppTheme.textMuted, size: 18),
-                    SizedBox(width: 8),
-                    Text(
-                      'Añadir Método',
-                      style: TextStyle(
-                        color: AppTheme.textMuted,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13,
-                      ),
+                      ],
                     ),
-                  ],
-                ),
+                  );
+                },
               ),
-            ),
-            
-            const SizedBox(height: 32),
-            
-            // Recent activity header
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Row(
-                  children: [
-                    Icon(Icons.history, size: 20, color: AppTheme.primaryBlue),
-                    SizedBox(width: 8),
-                    Text(
-                      'Actividad Reciente',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.textWhite,
-                      ),
-                    ),
-                  ],
-                ),
-                TextButton(
-                  onPressed: () {},
-                  child: const Text(
-                    'Ver Todo',
-                    style: TextStyle(color: AppTheme.primaryBlue, fontWeight: FontWeight.bold, fontSize: 13),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            
-            // Recent activity list
-            ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: appState.recentTransactions.length,
-              itemBuilder: (context, index) {
-                final tx = appState.recentTransactions[index];
-                final isNegative = tx['amount'] < 0;
-                
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: AppTheme.cardDark,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppTheme.borderDark),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF0D1724),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          tx['type'] == 'order' ? Icons.water_drop_outlined : Icons.account_balance_wallet_outlined,
-                          color: AppTheme.primaryBlue,
-                          size: 20,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              tx['title'],
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                                color: AppTheme.textWhite,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              tx['time'],
-                              style: const TextStyle(
-                                fontSize: 11,
-                                color: AppTheme.textMuted,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Text(
-                        '${isNegative ? '-' : '+'}\$${tx['amount'].abs().toStringAsFixed(2)}',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 15,
-                          color: isNegative ? AppTheme.textWhite : AppTheme.success,
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
           ],
         ),
       ),
@@ -363,43 +236,132 @@ class ClientWalletScreen extends StatelessWidget {
   }
 
   void _showRechargeDialog(BuildContext context, AppState appState) {
-    final controller = TextEditingController();
+    final montoCtrl = TextEditingController();
+    final refCtrl = TextEditingController();
+    String metodo = 'Pago Movil';
+    String? bancoEmisor;
+    bool isSubmitting = false;
+
     showDialog(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: AppTheme.cardDark,
-          title: const Text('Recargar Saldo (USD)'),
-          content: TextField(
-            controller: controller,
-            keyboardType: TextInputType.number,
-            style: const TextStyle(color: AppTheme.textWhite),
-            decoration: const InputDecoration(
-              hintText: 'Ingresa el monto a recargar',
-              hintStyle: TextStyle(color: AppTheme.textMuted),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          return AlertDialog(
+            backgroundColor: AppTheme.surfaceDark,
+            title: const Text('Recargar Saldo', style: TextStyle(color: AppTheme.textWhite)),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'La recarga queda pendiente hasta que verifiquemos el pago (${metodo == 'Pago Movil' ? appState.paymentInfo?['pago_movil']?['telefono'] ?? '' : metodo == 'Zelle' ? appState.paymentInfo?['zelle']?['email'] ?? '' : appState.paymentInfo?['binance_pay']?['id'] ?? ''}).',
+                    style: const TextStyle(color: AppTheme.textMuted, fontSize: 12),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    initialValue: metodo,
+                    dropdownColor: AppTheme.cardDark,
+                    style: const TextStyle(color: AppTheme.textWhite, fontSize: 13),
+                    decoration: const InputDecoration(labelText: 'Método'),
+                    items: const [
+                      DropdownMenuItem(value: 'Pago Movil', child: Text('Pago Móvil')),
+                      DropdownMenuItem(value: 'Zelle', child: Text('Zelle')),
+                      DropdownMenuItem(value: 'Binance Pay', child: Text('Binance Pay')),
+                    ],
+                    onChanged: (value) => setDialogState(() => metodo = value!),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: montoCtrl,
+                    keyboardType: TextInputType.number,
+                    style: const TextStyle(color: AppTheme.textWhite, fontSize: 13),
+                    decoration: const InputDecoration(labelText: 'Monto a recargar (USD)', hintText: 'Ej. 20'),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: refCtrl,
+                    style: const TextStyle(color: AppTheme.textWhite, fontSize: 13),
+                    decoration: InputDecoration(
+                      labelText: metodo == 'Pago Movil' ? 'Últimos 4 dígitos de la referencia' : 'Número de referencia',
+                    ),
+                  ),
+                  if (metodo == 'Pago Movil') ...[
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      initialValue: bancoEmisor,
+                      dropdownColor: AppTheme.cardDark,
+                      style: const TextStyle(color: AppTheme.textWhite, fontSize: 13),
+                      decoration: const InputDecoration(labelText: 'Banco emisor'),
+                      items: bancosVenezuela.map((b) => DropdownMenuItem(value: b, child: Text(b))).toList(),
+                      onChanged: (value) => setDialogState(() => bancoEmisor = value),
+                    ),
+                  ],
+                ],
+              ),
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancelar'),
-            ),
-            TextButton(
-              onPressed: () {
-                final amt = double.tryParse(controller.text);
-                if (amt != null && amt > 0) {
-                  appState.rechargeWallet(amt, 'Zelle');
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Recargado \$${amt.toStringAsFixed(2)} exitosamente.')),
-                  );
-                }
-              },
-              child: const Text('Confirmar'),
-            ),
-          ],
-        );
-      },
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+              ElevatedButton(
+                onPressed: isSubmitting
+                    ? null
+                    : () async {
+                        final monto = double.tryParse(montoCtrl.text.trim());
+                        if (monto == null || monto <= 0) {
+                          ScaffoldMessenger.of(ctx).showSnackBar(
+                            const SnackBar(content: Text('Ingresa un monto válido')),
+                          );
+                          return;
+                        }
+                        if (metodo == 'Pago Movil') {
+                          if (!RegExp(r'^\d{4}$').hasMatch(refCtrl.text.trim())) {
+                            ScaffoldMessenger.of(ctx).showSnackBar(
+                              const SnackBar(content: Text('Ingresa los últimos 4 dígitos de la referencia')),
+                            );
+                            return;
+                          }
+                          if (bancoEmisor == null) {
+                            ScaffoldMessenger.of(ctx).showSnackBar(
+                              const SnackBar(content: Text('Selecciona el banco emisor')),
+                            );
+                            return;
+                          }
+                        }
+
+                        setDialogState(() => isSubmitting = true);
+                        final ok = await appState.requestClientWalletRecharge(
+                          metodo: metodo,
+                          monto: monto,
+                          referencia: refCtrl.text.trim(),
+                          bancoEmisor: metodo == 'Pago Movil' ? bancoEmisor : null,
+                        );
+                        setDialogState(() => isSubmitting = false);
+
+                        if (ctx.mounted) Navigator.pop(ctx);
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                ok
+                                    ? 'Solicitud de recarga enviada. Quedará acreditada al verificarse.'
+                                    : 'No se pudo enviar la solicitud de recarga. Intenta de nuevo.',
+                              ),
+                            ),
+                          );
+                        }
+                      },
+                child: isSubmitting
+                    ? const SizedBox(
+                        height: 16,
+                        width: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Text('Solicitar Recarga'),
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 }

@@ -1,0 +1,23 @@
+// Bancos venezolanos habilitados para Pago Móvil (usado en checkout y preferencias de pago)
+const List<String> bancosVenezuela = [
+  'Banco de Venezuela',
+  'Banesco',
+  'Banco Mercantil',
+  'Banco Provincial (BBVA)',
+  'Banco Bicentenario',
+  'BOD (Banco Occidental de Descuento)',
+  'Banco Nacional de Crédito (BNC)',
+  'Bancaribe',
+  'Banplus',
+  '100% Banco',
+  'Bancamiga',
+  'Banco Activo',
+  'Banco Plaza',
+  'Banco Fondo Común (BFC)',
+  'Mi Banco',
+  'Banco del Tesoro',
+  'Banco Exterior',
+  'Banco Caroní',
+  'Bangente',
+  'Banco Sofitasa',
+];

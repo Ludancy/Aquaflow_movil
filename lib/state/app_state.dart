@@ -118,6 +118,7 @@ class AppState extends ChangeNotifier {
   Future<void> _init() async {
     await initBackendConnection();
     await _restoreSession();
+    await _restorePreferredPaymentMethod();
     isSessionRestoring = false;
     notifyListeners();
   }
@@ -154,6 +155,7 @@ class AppState extends ChangeNotifier {
         }).toList();
         deliveryAddress = userAddresses.first['direccion_exacta'];
       }
+      refreshClientWallet();
     }
 
     if (usuarioData['cisternero'] != null) {
@@ -308,6 +310,34 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  // Método de pago preferido del cliente (banco emisor guardado para Pago Móvil).
+  // Se persiste localmente para no tener que reescribirlo en cada pedido.
+  static const _prefPreferredMethodKey = 'aquaflow_preferred_payment_method';
+  static const _prefPreferredBancoKey = 'aquaflow_preferred_banco_emisor';
+
+  String? preferredBancoEmisor;
+
+  Future<void> _restorePreferredPaymentMethod() async {
+    final prefs = await SharedPreferences.getInstance();
+    final method = prefs.getString(_prefPreferredMethodKey);
+    if (method != null) paymentMethod = method;
+    preferredBancoEmisor = prefs.getString(_prefPreferredBancoKey);
+  }
+
+  Future<void> savePreferredPaymentMethod(String method, {String? bancoEmisor}) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_prefPreferredMethodKey, method);
+    paymentMethod = method;
+    if (bancoEmisor != null && bancoEmisor.isNotEmpty) {
+      await prefs.setString(_prefPreferredBancoKey, bancoEmisor);
+      preferredBancoEmisor = bancoEmisor;
+    } else {
+      await prefs.remove(_prefPreferredBancoKey);
+      preferredBancoEmisor = null;
+    }
+    notifyListeners();
+  }
+
   // Address CRUD
   Future<bool> addNewAddress(String label, String address, String coords) async {
     final newAddr = {
@@ -413,7 +443,7 @@ class AppState extends ChangeNotifier {
   }
 
   // Create order from client
-  void createOrder() async {
+  Future<void> createOrder() async {
     final orderId = 'ORD-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
     activeOrder = WaterOrder(
       id: orderId,
@@ -628,6 +658,41 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  // Billetera del cliente (saldo real respaldado por Cliente.saldo_billetera en el backend)
+  List<Map<String, dynamic>> clientWalletRecargas = [];
+
+  Future<void> refreshClientWallet() async {
+    if (isBackendConnected && currentClientId != null) {
+      final wData = await ApiService.getClientWallet(currentClientId!);
+      if (wData != null) {
+        walletBalanceUsd = (wData['saldo_billetera'] as num?)?.toDouble() ?? walletBalanceUsd;
+        clientWalletRecargas = (wData['recargas'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+        notifyListeners();
+      }
+    }
+  }
+
+  Future<bool> requestClientWalletRecharge({
+    required String metodo,
+    required double monto,
+    String? referencia,
+    String? bancoEmisor,
+  }) async {
+    if (!isBackendConnected || currentClientId == null) return false;
+    final res = await ApiService.requestWalletRecharge(
+      clientId: currentClientId!,
+      metodo: metodo,
+      monto: monto,
+      referencia: referencia,
+      bancoEmisor: bancoEmisor,
+    );
+    if (res != null && (res['statusCode'] == 200 || res['statusCode'] == 201)) {
+      await refreshClientWallet();
+      return true;
+    }
+    return false;
+  }
+
   Future<bool> withdrawDriverWallet(double amount) async {
     if (walletBalanceUsd >= amount) {
       walletBalanceUsd -= amount;
@@ -649,14 +714,4 @@ class AppState extends ChangeNotifier {
     return false;
   }
 
-  void rechargeWallet(double amount, String method) {
-    walletBalanceUsd += amount;
-    recentTransactions.insert(0, {
-      'title': 'Recarga $method',
-      'time': 'Hoy, ${DateTime.now().hour}:${DateTime.now().minute.toString().padLeft(2, '0')}',
-      'amount': amount,
-      'type': 'deposit',
-    });
-    notifyListeners();
-  }
 }

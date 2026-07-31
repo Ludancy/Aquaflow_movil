@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../constants/bancos_venezuela.dart';
 import '../../state/app_state.dart';
 import '../../theme.dart';
 import 'client_tracking_screen.dart';
@@ -13,12 +14,17 @@ class ClientConfirmScreen extends StatefulWidget {
 
 class _ClientConfirmScreenState extends State<ClientConfirmScreen> {
   final _refController = TextEditingController();
-  final _bancoController = TextEditingController();
+  String? _bancoEmisor;
+
+  @override
+  void initState() {
+    super.initState();
+    _bancoEmisor = context.read<AppState>().preferredBancoEmisor;
+  }
 
   @override
   void dispose() {
     _refController.dispose();
-    _bancoController.dispose();
     super.dispose();
   }
 
@@ -134,31 +140,64 @@ class _ClientConfirmScreenState extends State<ClientConfirmScreen> {
                   isSelected: appState.paymentMethod == 'Pago Movil',
                   onTap: () => appState.setPaymentMethod('Pago Movil'),
                 ),
+                const SizedBox(height: 12),
 
-                const SizedBox(height: 16),
-                TextField(
-                  controller: _refController,
-                  keyboardType: appState.paymentMethod == 'Pago Movil' ? TextInputType.number : TextInputType.text,
-                  style: const TextStyle(color: AppTheme.textWhite, fontSize: 14),
-                  decoration: InputDecoration(
-                    labelText: appState.paymentMethod == 'Pago Movil'
-                        ? 'Últimos 4 dígitos de la referencia'
-                        : 'Número de Referencia de Pago',
-                    hintText: appState.paymentMethod == 'Pago Movil' ? 'Ej. 1234' : 'Ej. REF-123456',
-                    prefixIcon: const Icon(Icons.numbers, size: 18),
-                  ),
+                // Binance Pay option
+                _PaymentMethodCard(
+                  title: 'Binance Pay',
+                  subtitle: appState.paymentInfo?['binance_pay']?['id'] != null
+                      ? 'Pay ID: ${appState.paymentInfo!['binance_pay']['id']}'
+                      : 'Paga con USDT/cripto',
+                  icon: Icons.currency_bitcoin,
+                  isSelected: appState.paymentMethod == 'Binance Pay',
+                  onTap: () => appState.setPaymentMethod('Binance Pay'),
                 ),
+                const SizedBox(height: 12),
+
+                // Saldo AquaFlow option
+                _PaymentMethodCard(
+                  title: 'Saldo AquaFlow',
+                  subtitle: 'Disponible: \$${appState.walletBalanceUsd.toStringAsFixed(2)}'
+                      '${appState.walletBalanceUsd < appState.selectedPrice ? ' · insuficiente para este pedido' : ''}',
+                  icon: Icons.account_balance_wallet,
+                  isSelected: appState.paymentMethod == 'Saldo AquaFlow',
+                  onTap: appState.walletBalanceUsd >= appState.selectedPrice
+                      ? () => appState.setPaymentMethod('Saldo AquaFlow')
+                      : null,
+                ),
+
+                if (appState.paymentMethod != 'Saldo AquaFlow') ...[
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: _refController,
+                    keyboardType: appState.paymentMethod == 'Pago Movil' ? TextInputType.number : TextInputType.text,
+                    style: const TextStyle(color: AppTheme.textWhite, fontSize: 14),
+                    decoration: InputDecoration(
+                      labelText: appState.paymentMethod == 'Pago Movil'
+                          ? 'Últimos 4 dígitos de la referencia'
+                          : appState.paymentMethod == 'Binance Pay'
+                              ? 'ID de transacción (TxID)'
+                              : 'Número de Referencia de Pago',
+                      hintText: appState.paymentMethod == 'Pago Movil' ? 'Ej. 1234' : 'Ej. REF-123456',
+                      prefixIcon: const Icon(Icons.numbers, size: 18),
+                    ),
+                  ),
+                ],
 
                 if (appState.paymentMethod == 'Pago Movil') ...[
                   const SizedBox(height: 12),
-                  TextField(
-                    controller: _bancoController,
+                  DropdownButtonFormField<String>(
+                    initialValue: _bancoEmisor,
+                    dropdownColor: AppTheme.cardDark,
                     style: const TextStyle(color: AppTheme.textWhite, fontSize: 14),
                     decoration: const InputDecoration(
                       labelText: 'Banco emisor',
-                      hintText: 'Ej. Banco de Venezuela',
                       prefixIcon: Icon(Icons.account_balance_outlined, size: 18),
                     ),
+                    items: bancosVenezuela
+                        .map((banco) => DropdownMenuItem(value: banco, child: Text(banco)))
+                        .toList(),
+                    onChanged: (value) => setState(() => _bancoEmisor = value),
                   ),
                 ],
 
@@ -168,7 +207,7 @@ class _ClientConfirmScreenState extends State<ClientConfirmScreen> {
                 ElevatedButton(
                   onPressed: () async {
                     final referencia = _refController.text.trim();
-                    final bancoEmisor = _bancoController.text.trim();
+                    final bancoEmisor = _bancoEmisor ?? '';
 
                     if (appState.paymentMethod == 'Pago Movil') {
                       if (!RegExp(r'^\d{4}$').hasMatch(referencia)) {
@@ -179,24 +218,40 @@ class _ClientConfirmScreenState extends State<ClientConfirmScreen> {
                       }
                       if (bancoEmisor.isEmpty) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Ingresa el banco emisor')),
+                          const SnackBar(content: Text('Selecciona el banco emisor')),
                         );
                         return;
                       }
-                    } else if (referencia.isEmpty) {
+                    } else if (appState.paymentMethod != 'Saldo AquaFlow' && referencia.isEmpty) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('Ingresa el número de referencia de pago')),
                       );
                       return;
                     }
 
-                    appState.createOrder();
-                    await appState.processOrderPayment(
-                      referencia,
+                    if (appState.paymentMethod != 'Saldo AquaFlow') {
+                      await appState.savePreferredPaymentMethod(
+                        appState.paymentMethod,
+                        bancoEmisor: appState.paymentMethod == 'Pago Movil' ? bancoEmisor : null,
+                      );
+                    }
+
+                    await appState.createOrder();
+                    final ok = await appState.processOrderPayment(
+                      appState.paymentMethod == 'Saldo AquaFlow' ? 'Saldo AquaFlow' : referencia,
                       bancoEmisor: appState.paymentMethod == 'Pago Movil' ? bancoEmisor : null,
                     );
+                    if (appState.paymentMethod == 'Saldo AquaFlow') {
+                      await appState.refreshClientWallet();
+                    }
                     if (context.mounted) {
-                      _showSuccessDialog(context);
+                      if (ok) {
+                        _showSuccessDialog(context);
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('No se pudo registrar el pago. Intenta de nuevo.')),
+                        );
+                      }
                     }
                   },
                   child: const Text('Confirmar y Solicitar'),
@@ -308,7 +363,7 @@ class _PaymentMethodCard extends StatelessWidget {
   final String subtitle;
   final IconData icon;
   final bool isSelected;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   const _PaymentMethodCard({
     required this.title,
@@ -320,12 +375,15 @@ class _PaymentMethodCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final disabled = onTap == null;
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(16),
-        child: Container(
+        child: Opacity(
+          opacity: disabled ? 0.5 : 1.0,
+          child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: const Color(0xFF0D1724),
@@ -378,6 +436,7 @@ class _PaymentMethodCard extends StatelessWidget {
                 ),
               ),
             ],
+          ),
           ),
         ),
       ),
