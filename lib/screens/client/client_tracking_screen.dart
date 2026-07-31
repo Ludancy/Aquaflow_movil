@@ -109,11 +109,11 @@ class ClientTrackingScreen extends StatelessWidget {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           const Text(
-                            'Simulador: Esperando Aceptación',
+                            'Esperando Aceptación de Cisternero',
                             style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
                           ),
                           Text(
-                            'Pulsa el botón de abajo para ir al portal del conductor y aceptar este pedido.',
+                            'Tu solicitud ha sido enviada a las cisternas disponibles.',
                             style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 11),
                           ),
                         ],
