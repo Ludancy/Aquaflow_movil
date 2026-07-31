@@ -12,11 +12,13 @@ class ClientConfirmScreen extends StatefulWidget {
 }
 
 class _ClientConfirmScreenState extends State<ClientConfirmScreen> {
-  final _refController = TextEditingController(text: 'REF-984123');
+  final _refController = TextEditingController();
+  final _bancoController = TextEditingController();
 
   @override
   void dispose() {
     _refController.dispose();
+    _bancoController.dispose();
     super.dispose();
   }
 
@@ -115,40 +117,84 @@ class _ClientConfirmScreenState extends State<ClientConfirmScreen> {
                 // Zelle option
                 _PaymentMethodCard(
                   title: 'Zelle',
-                  subtitle: 'juan.perez@email.com',
+                  subtitle: appState.paymentInfo?['zelle']?['email'] ?? 'Datos no disponibles',
                   icon: Icons.account_balance_wallet_outlined,
                   isSelected: appState.paymentMethod == 'Zelle',
                   onTap: () => appState.setPaymentMethod('Zelle'),
                 ),
                 const SizedBox(height: 12),
-                
+
                 // Pago Móvil option
                 _PaymentMethodCard(
-                  title: 'Pago Móvil - Banesco',
-                  subtitle: 'Paga con datos telefónicos',
+                  title: 'Pago Móvil${appState.paymentInfo?['pago_movil']?['banco'] != null ? ' - ${appState.paymentInfo!['pago_movil']['banco']}' : ''}',
+                  subtitle: appState.paymentInfo?['pago_movil']?['telefono'] != null
+                      ? '${appState.paymentInfo!['pago_movil']['telefono']} · RIF ${appState.paymentInfo!['pago_movil']['rif']}'
+                      : 'Paga con datos telefónicos',
                   icon: Icons.phone_android_outlined,
-                  isSelected: appState.paymentMethod == 'Pago Móvil',
-                  onTap: () => appState.setPaymentMethod('Pago Móvil'),
+                  isSelected: appState.paymentMethod == 'Pago Movil',
+                  onTap: () => appState.setPaymentMethod('Pago Movil'),
                 ),
 
                 const SizedBox(height: 16),
                 TextField(
                   controller: _refController,
+                  keyboardType: appState.paymentMethod == 'Pago Movil' ? TextInputType.number : TextInputType.text,
                   style: const TextStyle(color: AppTheme.textWhite, fontSize: 14),
-                  decoration: const InputDecoration(
-                    labelText: 'Número de Referencia de Pago',
-                    hintText: 'Ej. REF-123456',
-                    prefixIcon: Icon(Icons.numbers, size: 18),
+                  decoration: InputDecoration(
+                    labelText: appState.paymentMethod == 'Pago Movil'
+                        ? 'Últimos 4 dígitos de la referencia'
+                        : 'Número de Referencia de Pago',
+                    hintText: appState.paymentMethod == 'Pago Movil' ? 'Ej. 1234' : 'Ej. REF-123456',
+                    prefixIcon: const Icon(Icons.numbers, size: 18),
                   ),
                 ),
-                
+
+                if (appState.paymentMethod == 'Pago Movil') ...[
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _bancoController,
+                    style: const TextStyle(color: AppTheme.textWhite, fontSize: 14),
+                    decoration: const InputDecoration(
+                      labelText: 'Banco emisor',
+                      hintText: 'Ej. Banco de Venezuela',
+                      prefixIcon: Icon(Icons.account_balance_outlined, size: 18),
+                    ),
+                  ),
+                ],
+
                 const Spacer(),
-                
+
                 // Confirm Payment Button
                 ElevatedButton(
                   onPressed: () async {
+                    final referencia = _refController.text.trim();
+                    final bancoEmisor = _bancoController.text.trim();
+
+                    if (appState.paymentMethod == 'Pago Movil') {
+                      if (!RegExp(r'^\d{4}$').hasMatch(referencia)) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Ingresa los últimos 4 dígitos de la referencia')),
+                        );
+                        return;
+                      }
+                      if (bancoEmisor.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Ingresa el banco emisor')),
+                        );
+                        return;
+                      }
+                    } else if (referencia.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Ingresa el número de referencia de pago')),
+                      );
+                      return;
+                    }
+
                     appState.createOrder();
-                    await appState.processOrderPayment(_refController.text.trim());
+                    await appState.processOrderPayment(
+                      referencia,
+                      bancoEmisor: appState.paymentMethod == 'Pago Movil' ? bancoEmisor : null,
+                    );
                     if (context.mounted) {
                       _showSuccessDialog(context);
                     }

@@ -8,6 +8,7 @@ import 'client_history_screen.dart';
 import 'client_profile_screen.dart';
 import 'client_tracking_screen.dart';
 import 'client_wallet_screen.dart';
+import '../notifications_screen.dart';
 
 class ClientHomeScreen extends StatefulWidget {
   const ClientHomeScreen({Key? key}) : super(key: key);
@@ -169,13 +170,44 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                     ),
                     
                     // Notification Icon
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: const BoxDecoration(
-                        color: AppTheme.cardDark,
-                        shape: BoxShape.circle,
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const NotificationsScreen()),
+                        );
+                      },
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: const BoxDecoration(
+                              color: AppTheme.cardDark,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.notifications_none, color: AppTheme.textWhite, size: 20),
+                          ),
+                          if (appState.unreadNotificationsCount > 0)
+                            Positioned(
+                              top: -2,
+                              right: -2,
+                              child: Container(
+                                padding: const EdgeInsets.all(3),
+                                decoration: const BoxDecoration(
+                                  color: AppTheme.error,
+                                  shape: BoxShape.circle,
+                                ),
+                                constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                                child: Text(
+                                  '${appState.unreadNotificationsCount}',
+                                  style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
-                      child: const Icon(Icons.notifications_none, color: AppTheme.textWhite, size: 20),
                     ),
                   ],
                 ),

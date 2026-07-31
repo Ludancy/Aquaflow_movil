@@ -4,6 +4,18 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 class ApiService {
+  // JWT emitido por /auth/verify-otp o por el registro; lo setea AppState tras autenticar.
+  static String? authToken;
+
+  static Map<String, String> get _headers => {
+        'Content-Type': 'application/json',
+        if (authToken != null) 'Authorization': 'Bearer $authToken',
+      };
+
+  static Map<String, String> get _authHeadersOnly => {
+        if (authToken != null) 'Authorization': 'Bearer $authToken',
+      };
+
   static String get baseUrl {
     if (kIsWeb) {
       return 'http://localhost:3000';
@@ -33,7 +45,7 @@ class ApiService {
     return false;
   }
 
-  // Get active tariffs / rates
+  // Get active tariffs / rates (público)
   static Future<List<dynamic>> getTarifas() async {
     try {
       final response = await http
@@ -51,7 +63,7 @@ class ApiService {
     return [];
   }
 
-  // Auth: Request OTP login
+  // Auth: Request OTP login (público)
   static Future<Map<String, dynamic>?> login(String phone) async {
     try {
       final response = await http.post(
@@ -70,7 +82,7 @@ class ApiService {
     return null;
   }
 
-  // Auth: Verify OTP code
+  // Auth: Verify OTP code (público; devuelve el token de sesión)
   static Future<Map<String, dynamic>?> verifyOtp(String phone, String otp) async {
     try {
       final response = await http.post(
@@ -87,7 +99,7 @@ class ApiService {
     return null;
   }
 
-  // Users: Register new client
+  // Users: Register new client (público; devuelve el token de sesión)
   static Future<Map<String, dynamic>?> registerClient({
     required String nombre,
     required String telefono,
@@ -114,7 +126,7 @@ class ApiService {
     return null;
   }
 
-  // Users: Driver onboarding
+  // Users: Driver onboarding (público; devuelve el token de sesión)
   static Future<Map<String, dynamic>?> driverOnboarding({
     required String nombre,
     required String telefono,
@@ -145,11 +157,12 @@ class ApiService {
     return null;
   }
 
-  // Users: Get profile details
+  // Users: Get profile details (requiere sesión)
   static Future<Map<String, dynamic>?> getProfile(String userId) async {
     try {
       final response = await http.get(
         Uri.parse('$baseUrl/api/v1/users/$userId/profile'),
+        headers: _authHeadersOnly,
       );
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -161,7 +174,7 @@ class ApiService {
     return null;
   }
 
-  // Users: Add client address
+  // Users: Add client address (requiere sesión)
   static Future<Map<String, dynamic>?> addAddress({
     required String clientId,
     required String etiqueta,
@@ -171,7 +184,7 @@ class ApiService {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/api/v1/users/$clientId/addresses'),
-        headers: {'Content-Type': 'application/json'},
+        headers: _headers,
         body: jsonEncode({
           'etiqueta': etiqueta,
           'direccion_exacta': direccionExacta,
@@ -187,7 +200,7 @@ class ApiService {
     return null;
   }
 
-  // Orders: Request water order
+  // Orders: Request water order (requiere sesión)
   static Future<Map<String, dynamic>?> requestOrder({
     required String clientId,
     required String tarifaId,
@@ -206,7 +219,7 @@ class ApiService {
 
       final response = await http.post(
         Uri.parse('$baseUrl/api/v1/orders/request'),
-        headers: {'Content-Type': 'application/json'},
+        headers: _headers,
         body: jsonEncode(bodyMap),
       );
       if (response.statusCode == 201 || response.statusCode == 200) {
@@ -218,11 +231,12 @@ class ApiService {
     return null;
   }
 
-  // Orders: Get orders for a user
+  // Orders: Get orders for a user (requiere sesión)
   static Future<List<dynamic>> getUserOrders(String userId) async {
     try {
       final response = await http.get(
         Uri.parse('$baseUrl/api/v1/orders/user/$userId'),
+        headers: _authHeadersOnly,
       );
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -236,13 +250,13 @@ class ApiService {
     return [];
   }
 
-  // Orders: Accept order as driver
+  // Orders: Accept order as driver (requiere sesión)
   static Future<Map<String, dynamic>?> acceptOrder(
       String orderId, String driverId) async {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/api/v1/orders/$orderId/accept'),
-        headers: {'Content-Type': 'application/json'},
+        headers: _headers,
         body: jsonEncode({'id_cisternero': driverId}),
       );
       if (response.statusCode == 200) {
@@ -254,13 +268,13 @@ class ApiService {
     return null;
   }
 
-  // Orders: Update order status (En Ruta, Entregado, etc.)
+  // Orders: Update order status (En Ruta, Entregado, etc.) (requiere sesión)
   static Future<Map<String, dynamic>?> updateOrderStatus(
       String orderId, String status, {String? detalle}) async {
     try {
       final response = await http.patch(
         Uri.parse('$baseUrl/api/v1/orders/$orderId/status'),
-        headers: {'Content-Type': 'application/json'},
+        headers: _headers,
         body: jsonEncode({
           'estado': status,
           if (detalle != null) 'detalle': detalle,
@@ -275,13 +289,13 @@ class ApiService {
     return null;
   }
 
-  // Orders: Cancel order
+  // Orders: Cancel order (requiere sesión)
   static Future<Map<String, dynamic>?> cancelOrder(
       String orderId, String motivo, String canceladoPor) async {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/api/v1/orders/$orderId/cancel'),
-        headers: {'Content-Type': 'application/json'},
+        headers: _headers,
         body: jsonEncode({
           'motivo': motivo,
           'cancelado_por': canceladoPor,
@@ -296,23 +310,67 @@ class ApiService {
     return null;
   }
 
-  // Payments: Process payment
+  // Payments: Upload payment receipt/comprobante image, returns the server URL (requiere sesión)
+  static Future<String?> uploadComprobante(File file) async {
+    try {
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse('$baseUrl/api/v1/payments/upload-comprobante'),
+      );
+      request.headers.addAll(_authHeadersOnly);
+      request.files.add(await http.MultipartFile.fromPath('comprobante', file.path));
+
+      final streamedResponse = await request.send().timeout(const Duration(seconds: 20));
+      final response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final relativeUrl = data['data']?['comprobante_url'];
+        if (relativeUrl != null) {
+          return '$baseUrl$relativeUrl';
+        }
+      }
+    } catch (e) {
+      debugPrint('Upload comprobante error: $e');
+    }
+    return null;
+  }
+
+  // Payments: Get company fiscal/financial data (bank, RIF, Zelle, Binance Pay) (público)
+  static Future<Map<String, dynamic>?> getPaymentInfo() async {
+    try {
+      final response = await http
+          .get(Uri.parse('$baseUrl/api/v1/payments/info'))
+          .timeout(const Duration(seconds: 5));
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['data'];
+      }
+    } catch (e) {
+      debugPrint('Get payment info error: $e');
+    }
+    return null;
+  }
+
+  // Payments: Process payment (requiere sesión)
   static Future<Map<String, dynamic>?> processPayment({
     required String orderId,
     required String metodo,
     required String referencia,
     required double montoPagado,
+    String? bancoEmisor,
     String? comprobanteUrl,
   }) async {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/api/v1/payments/process'),
-        headers: {'Content-Type': 'application/json'},
+        headers: _headers,
         body: jsonEncode({
           'id_pedido': orderId,
           'metodo': metodo,
           'referencia': referencia,
           'monto_pagado': montoPagado,
+          if (bancoEmisor != null) 'banco_emisor': bancoEmisor,
           if (comprobanteUrl != null) 'comprobante_url': comprobanteUrl,
         }),
       );
@@ -325,11 +383,12 @@ class ApiService {
     return null;
   }
 
-  // Payments: Get driver wallet balance
+  // Payments: Get driver wallet balance (requiere sesión)
   static Future<Map<String, dynamic>?> getWallet(String driverId) async {
     try {
       final response = await http.get(
         Uri.parse('$baseUrl/api/v1/payments/wallet/$driverId'),
+        headers: _authHeadersOnly,
       );
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -341,13 +400,13 @@ class ApiService {
     return null;
   }
 
-  // Payments: Request wallet withdrawal
+  // Payments: Request wallet withdrawal (requiere sesión)
   static Future<Map<String, dynamic>?> withdrawWallet(
       String driverId, double monto) async {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/api/v1/payments/wallet/withdraw'),
-        headers: {'Content-Type': 'application/json'},
+        headers: _headers,
         body: jsonEncode({
           'id_cisternero': driverId,
           'monto': monto,
@@ -362,7 +421,7 @@ class ApiService {
     return null;
   }
 
-  // Support: Rating
+  // Support: Rating (requiere sesión)
   static Future<Map<String, dynamic>?> submitRating({
     required String driverId,
     required String clientId,
@@ -373,7 +432,7 @@ class ApiService {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/api/v1/support/ratings'),
-        headers: {'Content-Type': 'application/json'},
+        headers: _headers,
         body: jsonEncode({
           'id_cisternero': driverId,
           'id_cliente': clientId,
@@ -391,7 +450,7 @@ class ApiService {
     return null;
   }
 
-  // Support: Dispute
+  // Support: Dispute (requiere sesión)
   static Future<Map<String, dynamic>?> submitDispute({
     required String orderId,
     required String reportadoPor,
@@ -401,7 +460,7 @@ class ApiService {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/api/v1/support/disputes'),
-        headers: {'Content-Type': 'application/json'},
+        headers: _headers,
         body: jsonEncode({
           'id_pedido': orderId,
           'reportado_por': reportadoPor,
@@ -418,7 +477,7 @@ class ApiService {
     return null;
   }
 
-  // Tracking: Update location
+  // Tracking: Update location (requiere sesión)
   static Future<Map<String, dynamic>?> updateLocation({
     required String driverId,
     required String orderId,
@@ -428,7 +487,7 @@ class ApiService {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/api/v1/tracking/location/$driverId'),
-        headers: {'Content-Type': 'application/json'},
+        headers: _headers,
         body: jsonEncode({
           'id_pedido': orderId,
           'latitud': latitud,
@@ -444,11 +503,12 @@ class ApiService {
     return null;
   }
 
-  // Tracking: Get order location
+  // Tracking: Get order location (requiere sesión)
   static Future<Map<String, dynamic>?> getOrderLocation(String orderId) async {
     try {
       final response = await http.get(
         Uri.parse('$baseUrl/api/v1/tracking/order/$orderId/location'),
+        headers: _authHeadersOnly,
       );
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -460,11 +520,12 @@ class ApiService {
     return null;
   }
 
-  // Tracking: Get notifications
+  // Tracking: Get notifications (requiere sesión)
   static Future<List<dynamic>> getNotifications(String userId) async {
     try {
       final response = await http.get(
         Uri.parse('$baseUrl/api/v1/tracking/notifications/$userId'),
+        headers: _authHeadersOnly,
       );
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -476,5 +537,33 @@ class ApiService {
       debugPrint('Get notifications error: $e');
     }
     return [];
+  }
+
+  // Tracking: Mark a single notification as read (requiere sesión)
+  static Future<bool> markNotificationRead(String notificationId) async {
+    try {
+      final response = await http.patch(
+        Uri.parse('$baseUrl/api/v1/tracking/notifications/$notificationId/read'),
+        headers: _authHeadersOnly,
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      debugPrint('Mark notification read error: $e');
+      return false;
+    }
+  }
+
+  // Tracking: Mark all notifications as read for a user (requiere sesión)
+  static Future<bool> markAllNotificationsRead(String userId) async {
+    try {
+      final response = await http.patch(
+        Uri.parse('$baseUrl/api/v1/tracking/notifications/$userId/read-all'),
+        headers: _authHeadersOnly,
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      debugPrint('Mark all notifications read error: $e');
+      return false;
+    }
   }
 }

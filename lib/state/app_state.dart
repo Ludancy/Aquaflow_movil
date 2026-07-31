@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/order.dart';
 import '../services/api_service.dart';
+import '../services/location_service.dart';
+import '../services/socket_service.dart';
 
 enum AppRole {
   client,
@@ -13,11 +15,22 @@ class AppState extends ChangeNotifier {
   bool isBackendConnected = false;
   String? activeTarifaId;
   List<dynamic> backendTarifas = [];
+  Map<String, dynamic>? paymentInfo;
 
   // Active Logged User Identity
   String? currentUserId;
   String? currentClientId;
   String? currentDriverId;
+  String? authToken;
+
+  void setAuthToken(String? token) {
+    authToken = token;
+    ApiService.authToken = token;
+    if (token != null) {
+      SocketService.disconnect(); // fuerza reconexión con el token nuevo
+      SocketService.connect();
+    }
+  }
 
   // Active User Info (Empty by default, populated strictly from DB/Registration)
   String userName = '';
@@ -46,6 +59,7 @@ class AppState extends ChangeNotifier {
       if (tarifas.isNotEmpty) {
         activeTarifaId = tarifas.first['id_tarifa'];
       }
+      paymentInfo = await ApiService.getPaymentInfo();
     }
     notifyListeners();
   }
@@ -94,9 +108,44 @@ class AppState extends ChangeNotifier {
 
     if (currentUserId != null && isBackendConnected) {
       fetchUserOrders();
+      fetchNotifications();
     }
 
     notifyListeners();
+  }
+
+  // Notifications (CRD-006)
+  List<Map<String, dynamic>> notifications = [];
+  int get unreadNotificationsCount => notifications.where((n) => n['leida'] != true).length;
+
+  Future<void> fetchNotifications() async {
+    if (!isBackendConnected || currentUserId == null) return;
+    final data = await ApiService.getNotifications(currentUserId!);
+    notifications = data.cast<Map<String, dynamic>>();
+    notifyListeners();
+  }
+
+  Future<void> markNotificationRead(String notificationId) async {
+    final notif = notifications.firstWhere(
+      (n) => n['id_notificacion'] == notificationId,
+      orElse: () => {},
+    );
+    if (notif.isEmpty || notif['leida'] == true) return;
+    notif['leida'] = true;
+    notifyListeners();
+    if (isBackendConnected) {
+      await ApiService.markNotificationRead(notificationId);
+    }
+  }
+
+  Future<void> markAllNotificationsRead() async {
+    for (final n in notifications) {
+      n['leida'] = true;
+    }
+    notifyListeners();
+    if (isBackendConnected && currentUserId != null) {
+      await ApiService.markAllNotificationsRead(currentUserId!);
+    }
   }
 
   // Global Role
@@ -106,7 +155,7 @@ class AppState extends ChangeNotifier {
   // Client Selection State
   int selectedLiters = 2000;
   double selectedPrice = 20.00;
-  String paymentMethod = 'Pago Móvil';
+  String paymentMethod = 'Pago Movil'; // debe coincidir con el literal Zod del backend (sin tilde)
 
   // Wallet State (Empty by default)
   double walletBalanceUsd = 0.0;
@@ -126,6 +175,37 @@ class AppState extends ChangeNotifier {
   double totalDriverEarnings = 0.0;
   int tripsCompleted = 0;
   double driverRating = 5.0;
+
+  // CRD-005: Envío periódico de la ubicación real del cisternero mientras el pedido está en curso
+  Timer? _locationTimer;
+
+  void _startLocationUpdates() {
+    _locationTimer?.cancel();
+    // El servidor ya aplica un intervalo mínimo de 10s (CRD-005); este timer solo
+    // asegura que no se manden lecturas más seguido que eso.
+    _locationTimer = Timer.periodic(const Duration(seconds: 10), (_) async {
+      if (activeOrder == null || currentDriverId == null || !isBackendConnected) return;
+      final position = await LocationService.getCurrentPosition();
+      if (position == null) return;
+      SocketService.sendLocationUpdate(
+        idCisternero: currentDriverId!,
+        idPedido: activeOrder!.id,
+        latitud: position.latitude,
+        longitud: position.longitude,
+      );
+    });
+  }
+
+  void _stopLocationUpdates() {
+    _locationTimer?.cancel();
+    _locationTimer = null;
+  }
+
+  @override
+  void dispose() {
+    _locationTimer?.cancel();
+    super.dispose();
+  }
 
 
 
@@ -174,6 +254,30 @@ class AppState extends ChangeNotifier {
     return true;
   }
 
+  static OrderStatus _mapEstado(String orderStatusStr) {
+    if (orderStatusStr == 'Asignado' || orderStatusStr == 'Aceptado') {
+      return OrderStatus.accepted;
+    } else if (orderStatusStr == 'En Ruta') {
+      return OrderStatus.inTransit;
+    } else if (orderStatusStr == 'Entregado') {
+      return OrderStatus.delivered;
+    } else if (orderStatusStr == 'Cancelado') {
+      return OrderStatus.cancelled;
+    }
+    return OrderStatus.requested;
+  }
+
+  // CRD-005: Aplicar un cambio de estado recibido en vivo por el socket de tracking
+  // (necesario porque cliente y conductor suelen estar en dispositivos distintos).
+  void applyRemoteOrderStatus(String idPedido, String estadoBackend) {
+    if (activeOrder == null || activeOrder!.id != idPedido) return;
+    activeOrder!.status = _mapEstado(estadoBackend);
+    if (activeOrder!.status == OrderStatus.delivered || activeOrder!.status == OrderStatus.cancelled) {
+      activeOrder = null;
+    }
+    notifyListeners();
+  }
+
   // Fetch backend orders strictly from database
   Future<void> fetchUserOrders() async {
     if (!isBackendConnected || currentUserId == null) return;
@@ -186,16 +290,7 @@ class AppState extends ChangeNotifier {
     if (ordersData.isNotEmpty) {
       for (var o in ordersData) {
         final orderStatusStr = o['estado_actual'] as String? ?? 'Pendiente';
-        OrderStatus status = OrderStatus.requested;
-        if (orderStatusStr == 'Asignado' || orderStatusStr == 'Aceptado') {
-          status = OrderStatus.accepted;
-        } else if (orderStatusStr == 'En Ruta') {
-          status = OrderStatus.inTransit;
-        } else if (orderStatusStr == 'Entregado') {
-          status = OrderStatus.delivered;
-        } else if (orderStatusStr == 'Cancelado') {
-          status = OrderStatus.cancelled;
-        }
+        final status = _mapEstado(orderStatusStr);
 
         final driverObj = o['cisternero'];
         String? dName;
@@ -217,7 +312,7 @@ class AppState extends ChangeNotifier {
               : 2000,
           price: (o['monto_total'] as num?)?.toDouble() ?? selectedPrice,
           address: o['coordenadas_destino'] ?? deliveryAddress,
-          paymentMethod: 'Pago Móvil',
+          paymentMethod: 'Pago Movil',
           status: status,
           driverName: dName,
           driverPhone: dPhone,
@@ -293,6 +388,7 @@ class AppState extends ChangeNotifier {
       final oldOrderId = activeOrder!.id;
       activeOrder!.status = OrderStatus.cancelled;
       pendingDriverRequests.clear();
+      _stopLocationUpdates();
       activeOrder = null;
 
       if (isBackendConnected) {
@@ -339,13 +435,19 @@ class AppState extends ChangeNotifier {
 
       if (isBackendConnected) {
         await ApiService.updateOrderStatus(activeOrder!.id, 'En Ruta');
+        SocketService.notifyStartTransit(activeOrder!.id);
         if (currentDriverId != null) {
-          ApiService.updateLocation(
-            driverId: currentDriverId!,
-            orderId: activeOrder!.id,
-            latitud: 10.48,
-            longitud: -66.90,
-          );
+          // CRD-003/CRD-005: usar la ubicación real del dispositivo, no una fija
+          final position = await LocationService.getCurrentPosition();
+          if (position != null) {
+            SocketService.sendLocationUpdate(
+              idCisternero: currentDriverId!,
+              idPedido: activeOrder!.id,
+              latitud: position.latitude,
+              longitud: position.longitude,
+            );
+          }
+          _startLocationUpdates();
         }
       }
     }
@@ -370,16 +472,18 @@ class AppState extends ChangeNotifier {
 
       if (isBackendConnected) {
         await ApiService.updateOrderStatus(completedId, 'Entregado');
+        SocketService.notifyDelivered(completedId);
         refreshDriverWallet();
       }
-      
+
+      _stopLocationUpdates();
       activeOrder = null;
     }
     notifyListeners();
   }
 
   // Payment process
-  Future<bool> processOrderPayment(String reference) async {
+  Future<bool> processOrderPayment(String reference, {String? bancoEmisor, String? comprobanteUrl}) async {
     if (activeOrder != null) {
       recentTransactions.insert(0, {
         'title': 'Pago Pedido (${activeOrder!.paymentMethod})',
@@ -387,12 +491,14 @@ class AppState extends ChangeNotifier {
         'amount': -activeOrder!.price,
         'type': 'order',
       });
-      
+
       if (isBackendConnected) {
         final res = await ApiService.processPayment(
           orderId: activeOrder!.id,
           metodo: paymentMethod,
           referencia: reference,
+          bancoEmisor: bancoEmisor,
+          comprobanteUrl: comprobanteUrl,
           montoPagado: activeOrder!.price,
         );
         notifyListeners();

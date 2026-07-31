@@ -1,19 +1,75 @@
 import 'package:flutter/material.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import '../../models/order.dart';
+import '../../services/socket_service.dart';
 import '../../state/app_state.dart';
 import '../../theme.dart';
 import '../../widgets/mock_map.dart';
 import 'client_home_screen.dart';
 
-class ClientTrackingScreen extends StatelessWidget {
+class ClientTrackingScreen extends StatefulWidget {
   const ClientTrackingScreen({Key? key}) : super(key: key);
+
+  @override
+  State<ClientTrackingScreen> createState() => _ClientTrackingScreenState();
+}
+
+class _ClientTrackingScreenState extends State<ClientTrackingScreen> {
+  String? _joinedOrderId;
+  LatLng? _driverLocation;
+
+  @override
+  void dispose() {
+    if (_joinedOrderId != null) {
+      SocketService.leaveOrder(_joinedOrderId!);
+    }
+    SocketService.offLocationUpdated();
+    SocketService.offOrderStatus();
+    super.dispose();
+  }
+
+  void _ensureJoined(String orderId) {
+    if (_joinedOrderId == orderId) return;
+    if (_joinedOrderId != null) {
+      SocketService.leaveOrder(_joinedOrderId!);
+    }
+    _joinedOrderId = orderId;
+    SocketService.joinOrder(orderId, 'cliente');
+
+    SocketService.onLocationUpdated((data) {
+      if (data['id_pedido'] != orderId) return;
+      final lat = (data['latitud'] as num?)?.toDouble();
+      final lng = (data['longitud'] as num?)?.toDouble();
+      if (lat == null || lng == null || !mounted) return;
+      setState(() => _driverLocation = LatLng(lat, lng));
+    });
+
+    SocketService.onOrderStatus((data) {
+      if (data['id_pedido'] != orderId || !mounted) return;
+      context.read<AppState>().applyRemoteOrderStatus(orderId, data['estado'] as String? ?? '');
+    });
+  }
+
+  LatLng? _parseCoords(String? raw) {
+    if (raw == null) return null;
+    final parts = raw.split(',');
+    if (parts.length != 2) return null;
+    final lat = double.tryParse(parts[0].trim());
+    final lng = double.tryParse(parts[1].trim());
+    if (lat == null || lng == null) return null;
+    return LatLng(lat, lng);
+  }
 
   @override
   Widget build(BuildContext context) {
     final appState = context.watch<AppState>();
     final activeOrder = appState.activeOrder;
-    
+
+    if (activeOrder != null) {
+      _ensureJoined(activeOrder.id);
+    }
+
     // Fallback if somehow there's no active order
     if (activeOrder == null) {
       return Scaffold(
@@ -81,7 +137,11 @@ class ClientTrackingScreen extends StatelessWidget {
         children: [
           // Map
           Positioned.fill(
-            child: MockMapWidget(showRoute: !isRequested),
+            child: MockMapWidget(
+              showRoute: !isRequested,
+              clientLocation: _parseCoords(activeOrder.address),
+              driverLocation: _driverLocation,
+            ),
           ),
 
           // Top Status Banner / Instructions

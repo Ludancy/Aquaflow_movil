@@ -98,9 +98,9 @@ class _LoginScreenState extends State<LoginScreen> {
         setState(() => _isLoading = false);
 
         if (res != null && res['data'] != null) {
-          final data = res['data'];
-          final usuario = data['usuario'];
-          appState.setCurrentUser(usuario, 'cliente');
+          // registerClient devuelve el usuario directo en data (sin envolver en 'usuario')
+          appState.setAuthToken(res['token']);
+          appState.setCurrentUser(res['data'], 'cliente');
         } else {
           appState.userName = name;
           appState.userPhone = phone;
@@ -145,9 +145,9 @@ class _LoginScreenState extends State<LoginScreen> {
         setState(() => _isLoading = false);
 
         if (res != null && res['data'] != null) {
-          final data = res['data'];
-          final usuario = data['usuario'];
-          appState.setCurrentUser(usuario, 'cisternero');
+          // driverOnboarding devuelve el usuario directo en data (sin envolver en 'usuario')
+          appState.setAuthToken(res['token']);
+          appState.setCurrentUser(res['data'], 'cisternero');
           appState.driverTruck = '$brand $model';
           appState.driverPlate = plate;
         } else {
@@ -321,6 +321,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     final usuario = data['usuario'];
                     final rol = data['rol'];
                     final appState = context.read<AppState>();
+                    appState.setAuthToken(data['token']);
                     appState.setCurrentUser(usuario, rol);
 
                     if (ctx.mounted) Navigator.pop(ctx);

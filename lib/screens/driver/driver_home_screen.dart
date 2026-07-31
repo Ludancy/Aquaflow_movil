@@ -7,6 +7,7 @@ import '../../widgets/mock_map.dart';
 import 'driver_active_order_screen.dart';
 import 'driver_earnings_screen.dart';
 import 'driver_profile_screen.dart';
+import '../notifications_screen.dart';
 
 class DriverHomeScreen extends StatefulWidget {
   const DriverHomeScreen({Key? key}) : super(key: key);
@@ -147,6 +148,48 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                       activeColor: AppTheme.success,
                       materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
+                  ],
+                ),
+              ),
+
+              // Notification bell
+              GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const NotificationsScreen()),
+                  );
+                },
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: AppTheme.cardDark.withOpacity(0.92),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: AppTheme.borderDark),
+                      ),
+                      child: const Icon(Icons.notifications_none, color: AppTheme.textWhite, size: 20),
+                    ),
+                    if (appState.unreadNotificationsCount > 0)
+                      Positioned(
+                        top: -2,
+                        right: -2,
+                        child: Container(
+                          padding: const EdgeInsets.all(3),
+                          decoration: const BoxDecoration(
+                            color: AppTheme.error,
+                            shape: BoxShape.circle,
+                          ),
+                          constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                          child: Text(
+                            '${appState.unreadNotificationsCount}',
+                            style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ),
