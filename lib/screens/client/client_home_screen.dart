@@ -220,28 +220,6 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                       label: 'Favoritos',
                       onTap: () {},
                     ),
-                    
-                    const Spacer(),
-                    
-                    // Simulator toggle button
-                    ElevatedButton.icon(
-                      onPressed: () {
-                        appState.setRole(AppRole.driver);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Modo Conductor Activado')),
-                        );
-                        Navigator.pushNamedAndRemoveUntil(context, '/driver_home', (route) => false);
-                      },
-                      icon: const Icon(Icons.swap_horiz, size: 14),
-                      label: const Text('Conductor', style: TextStyle(fontSize: 11)),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.borderDark,
-                        foregroundColor: AppTheme.textWhite,
-                        minimumSize: const Size(90, 32),
-                        padding: const EdgeInsets.symmetric(horizontal: 10),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                      ),
-                    ),
                   ],
                 ),
               ],

@@ -127,9 +127,7 @@ class AppState extends ChangeNotifier {
   int tripsCompleted = 0;
   double driverRating = 5.0;
 
-  // Map Animation simulation
-  double simulationProgress = 0.5;
-  Timer? _simulationTimer;
+
 
   void setRole(AppRole role) {
     _currentRole = role;
@@ -296,7 +294,6 @@ class AppState extends ChangeNotifier {
       activeOrder!.status = OrderStatus.cancelled;
       pendingDriverRequests.clear();
       activeOrder = null;
-      stopSimulation();
 
       if (isBackendConnected) {
         await ApiService.cancelOrder(
@@ -328,12 +325,6 @@ class AppState extends ChangeNotifier {
     if (isBackendConnected && currentDriverId != null) {
       await ApiService.acceptOrder(order.id, currentDriverId!);
     }
-    
-    Timer(const Duration(seconds: 3), () {
-      if (activeOrder != null && activeOrder!.status == OrderStatus.accepted) {
-        driverStartTransit();
-      }
-    });
   }
 
   void driverRejectOrder(WaterOrder order) {
@@ -345,7 +336,6 @@ class AppState extends ChangeNotifier {
     if (activeOrder != null) {
       activeOrder!.status = OrderStatus.inTransit;
       notifyListeners();
-      startSimulation();
 
       if (isBackendConnected) {
         await ApiService.updateOrderStatus(activeOrder!.id, 'En Ruta');
@@ -384,7 +374,6 @@ class AppState extends ChangeNotifier {
       }
       
       activeOrder = null;
-      stopSimulation();
     }
     notifyListeners();
   }
@@ -483,31 +472,5 @@ class AppState extends ChangeNotifier {
       'type': 'deposit',
     });
     notifyListeners();
-  }
-
-  // Map progress simulation
-  void startSimulation() {
-    simulationProgress = 0.0;
-    _simulationTimer?.cancel();
-    _simulationTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
-      if (simulationProgress < 1.0) {
-        simulationProgress += 0.01;
-        if (simulationProgress > 1.0) simulationProgress = 1.0;
-        notifyListeners();
-      } else {
-        timer.cancel();
-      }
-    });
-  }
-
-  void stopSimulation() {
-    _simulationTimer?.cancel();
-    simulationProgress = 0.5;
-  }
-
-  @override
-  void dispose() {
-    _simulationTimer?.cancel();
-    super.dispose();
   }
 }

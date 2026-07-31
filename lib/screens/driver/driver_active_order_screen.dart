@@ -94,7 +94,7 @@ class _DriverActiveOrderScreenState extends State<DriverActiveOrderScreen> {
 
     final isAccepted = activeOrder.status == OrderStatus.accepted;
     final isInTransit = activeOrder.status == OrderStatus.inTransit;
-    final progress = appState.simulationProgress;
+
 
     return Scaffold(
       backgroundColor: AppTheme.backgroundDark,
@@ -251,66 +251,22 @@ class _DriverActiveOrderScreenState extends State<DriverActiveOrderScreen> {
 
                   // Status display / Action button
                   if (isAccepted) ...[
-                    const Center(
-                      child: Padding(
-                        padding: EdgeInsets.only(bottom: 12.0),
-                        child: Text(
-                          'El cliente está esperando. Inicia el viaje cuando estés listo.',
-                          style: TextStyle(fontSize: 11, color: AppTheme.textMuted, fontStyle: FontStyle.italic),
-                        ),
-                      ),
-                    ),
                     ElevatedButton(
                       onPressed: () {
                         appState.driverStartTransit();
                       },
-                      child: const Text('Iniciar Viaje (Simular)'),
+                      child: const Text('Iniciar Ruta de Entrega'),
                     ),
                   ] else if (isInTransit) ...[
-                    // Progress bar showing simulation status
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              progress < 1.0 ? 'Simulando tránsito en mapa...' : 'Cisterna en destino',
-                              style: TextStyle(
-                                fontSize: 12, 
-                                color: progress < 1.0 ? AppTheme.primaryBlue : AppTheme.success,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            Text(
-                              '${(progress * 100).toInt()}%',
-                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppTheme.textWhite),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 6),
-                        LinearProgressIndicator(
-                          value: progress,
-                          backgroundColor: const Color(0xFF0D1724),
-                          color: progress < 1.0 ? AppTheme.primaryBlue : AppTheme.success,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        const SizedBox(height: 16),
-                        
-                        // Complete button
-                        ElevatedButton(
-                          onPressed: progress >= 1.0
-                              ? () {
-                                  appState.driverCompleteOrder();
-                                }
-                              : null,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: progress >= 1.0 ? AppTheme.success : Colors.grey.shade800,
-                            foregroundColor: progress >= 1.0 ? Colors.white : Colors.grey.shade500,
-                          ),
-                          child: const Text('Completar Entrega'),
-                        ),
-                      ],
+                    ElevatedButton(
+                      onPressed: () {
+                        appState.driverCompleteOrder();
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.success,
+                        foregroundColor: Colors.white,
+                      ),
+                      child: const Text('Completar Entrega'),
                     ),
                   ],
 

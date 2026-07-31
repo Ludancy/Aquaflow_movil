@@ -186,7 +186,7 @@ class ClientTrackingScreen extends StatelessWidget {
                           ),
                         ),
                         Text(
-                          'ETA: ${((1.0 - appState.simulationProgress) * 15 + 2).toInt()} min',
+                          'ETA: ~15 min',
                           style: const TextStyle(fontSize: 13, color: AppTheme.primaryBlue, fontWeight: FontWeight.bold),
                         ),
                       ],
@@ -247,49 +247,6 @@ class ClientTrackingScreen extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 20),
-                  ],
-
-                  // Simulation switches
-                  if (isRequested)
-                    ElevatedButton.icon(
-                      onPressed: () {
-                        appState.setRole(AppRole.driver);
-                        Navigator.pushNamedAndRemoveUntil(context, '/driver_home', (route) => false);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Modo Conductor: Acepta la solicitud para continuar.')),
-                        );
-                      },
-                      icon: const Icon(Icons.swap_horiz),
-                      label: const Text('Ir al Portal Conductor (Simular)'),
-                    )
-                  else if (isAccepted)
-                    ElevatedButton.icon(
-                      onPressed: () {
-                        appState.setRole(AppRole.driver);
-                        Navigator.pushNamedAndRemoveUntil(context, '/driver_home', (route) => false);
-                      },
-                      icon: const Icon(Icons.swap_horiz),
-                      label: const Text('Ir al Portal Conductor (Simular Viaje)'),
-                    )
-                  else if (isInTransit) ...[
-                    if (appState.simulationProgress >= 1.0)
-                      ElevatedButton(
-                        onPressed: () {
-                          appState.setRole(AppRole.driver);
-                          Navigator.pushNamedAndRemoveUntil(context, '/driver_home', (route) => false);
-                        },
-                        child: const Text('Ir a Portal Conductor (Completar Entrega)'),
-                      )
-                    else
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 8.0),
-                        child: Center(
-                          child: Text(
-                            'Espere a que llegue la cisterna o vaya al portal del conductor.',
-                            style: TextStyle(fontSize: 11, color: AppTheme.textMuted, fontStyle: FontStyle.italic),
-                          ),
-                        ),
-                      ),
                   ],
 
                   const SizedBox(height: 12),

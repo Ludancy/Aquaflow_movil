@@ -150,26 +150,6 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                   ],
                 ),
               ),
-              
-              // Simulator Switch (swap back to Client)
-              ElevatedButton.icon(
-                onPressed: () {
-                  appState.setRole(AppRole.client);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Modo Cliente Activado')),
-                  );
-                  Navigator.pushNamedAndRemoveUntil(context, '/client_home', (route) => false);
-                },
-                icon: const Icon(Icons.swap_horiz, size: 16),
-                label: const Text('Cliente'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.primaryBlue,
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size(100, 36),
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                ),
-              ),
             ],
           ),
         ),
