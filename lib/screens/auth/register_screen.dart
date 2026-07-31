@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../services/api_service.dart';
 import '../../state/app_state.dart';
 import '../../theme.dart';
 import '../client/client_home_screen.dart';
+import '../driver/driver_home_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
-  const RegisterScreen({Key? key}) : super(key: key);
+  final bool initialIsDriver;
+  const RegisterScreen({Key? key, this.initialIsDriver = false}) : super(key: key);
 
   @override
   State<RegisterScreen> createState() => _RegisterScreenState();
@@ -17,6 +20,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
   final _addressController = TextEditingController();
+  final _rifController = TextEditingController();
+
+  // Driver fields
+  final _licenseController = TextEditingController();
+  final _truckBrandController = TextEditingController();
+  final _truckModelController = TextEditingController();
+  final _truckPlateController = TextEditingController();
+  final _truckCapacityController = TextEditingController();
+
+  late bool _isDriverTab;
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _isDriverTab = widget.initialIsDriver;
+  }
 
   @override
   void dispose() {
@@ -24,175 +44,325 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _emailController.dispose();
     _phoneController.dispose();
     _addressController.dispose();
+    _rifController.dispose();
+    _licenseController.dispose();
+    _truckBrandController.dispose();
+    _truckModelController.dispose();
+    _truckPlateController.dispose();
+    _truckCapacityController.dispose();
     super.dispose();
+  }
+
+  void _handleRegister() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    final appState = context.read<AppState>();
+    setState(() => _isLoading = true);
+
+    if (appState.isBackendConnected) {
+      if (!_isDriverTab) {
+        // Client registration
+        final res = await ApiService.registerClient(
+          nombre: _nameController.text.trim(),
+          telefono: _phoneController.text.trim(),
+          email: _emailController.text.trim(),
+          identificacionFiscal: _rifController.text.trim(),
+        );
+
+        setState(() => _isLoading = false);
+
+        if (res != null && res['data'] != null) {
+          appState.setCurrentUser(res['data'], 'cliente');
+          if (_addressController.text.isNotEmpty) {
+            await appState.addNewAddress(
+              'Principal',
+              _addressController.text.trim(),
+              '10.48,-66.90',
+            );
+          }
+          if (mounted) {
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(builder: (context) => const ClientHomeScreen()),
+              (route) => false,
+            );
+          }
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Error al registrar cliente (posible email duplicado)')),
+            );
+          }
+        }
+      } else {
+        // Driver onboarding
+        final res = await ApiService.driverOnboarding(
+          nombre: _nameController.text.trim(),
+          telefono: _phoneController.text.trim(),
+          email: _emailController.text.trim(),
+          licenciaConducir: _licenseController.text.trim(),
+          rifPersonal: _rifController.text.trim(),
+          vehiculo: {
+            'marca': _truckBrandController.text.trim(),
+            'modelo': _truckModelController.text.trim(),
+            'placa': _truckPlateController.text.trim(),
+            'capacidad_tanque': double.tryParse(_truckCapacityController.text) ?? 5000.0,
+          },
+        );
+
+        setState(() => _isLoading = false);
+
+        if (res != null && res['data'] != null) {
+          appState.setCurrentUser(res['data'], 'cisternero');
+          if (mounted) {
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(builder: (context) => const DriverHomeScreen()),
+              (route) => false,
+            );
+          }
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Error al registrar conductor')),
+            );
+          }
+        }
+      }
+    } else {
+      // Offline direct simulation
+      setState(() => _isLoading = false);
+      appState.userName = _nameController.text;
+      appState.userEmail = _emailController.text;
+      appState.userPhone = _phoneController.text;
+      appState.deliveryAddress = _addressController.text;
+
+      if (!_isDriverTab) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const ClientHomeScreen()),
+          (route) => false,
+        );
+      } else {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const DriverHomeScreen()),
+          (route) => false,
+        );
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.backgroundDark,
-      // Custom Header AppBar
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        surfaceTintColor: Colors.transparent,
-        leading: const Icon(Icons.location_on_outlined, color: AppTheme.textWhite),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: AppTheme.textWhite),
+          onPressed: () => Navigator.pop(context),
+        ),
         title: const Text(
-          'AquaFlow',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: AppTheme.textWhite),
+          'Registro AquaFlow',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppTheme.textWhite),
         ),
         centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_none, color: AppTheme.textWhite),
-            onPressed: () {},
-          ),
-        ],
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
           child: Form(
             key: _formKey,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const SizedBox(height: 10),
-                
-                // Titles
-                const Center(
-                  child: Text(
-                    'Crear Cuenta',
-                    style: TextStyle(
-                      fontSize: 26,
-                      fontWeight: FontWeight.bold,
-                      color: AppTheme.textWhite,
+                // Role switch tabs
+                Row(
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => setState(() => _isDriverTab = false),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          decoration: BoxDecoration(
+                            color: !_isDriverTab ? AppTheme.primaryBlue : AppTheme.surfaceDark,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            'Cliente',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: !_isDriverTab ? AppTheme.textWhite : AppTheme.textMuted,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                const Center(
-                  child: Text(
-                    'Completa tus datos para empezar a pedir agua.',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: AppTheme.textMuted,
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => setState(() => _isDriverTab = true),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          decoration: BoxDecoration(
+                            color: _isDriverTab ? AppTheme.primaryBlue : AppTheme.surfaceDark,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            'Cisternero',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: _isDriverTab ? AppTheme.textWhite : AppTheme.textMuted,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
-                    textAlign: TextAlign.center,
-                  ),
+                  ],
                 ),
-                const SizedBox(height: 36),
+                const SizedBox(height: 24),
 
-                // Name field
+                // Title
+                Text(
+                  _isDriverTab ? 'Registro de Conductor' : 'Crear Cuenta Cliente',
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.textWhite,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  _isDriverTab
+                      ? 'Ingresa tus datos y los de tu unidad cisterna.'
+                      : 'Completa tus datos para comenzar a pedir agua.',
+                  style: const TextStyle(fontSize: 14, color: AppTheme.textMuted),
+                ),
+                const SizedBox(height: 24),
+
+                // Basic fields
                 _buildInputField(
                   label: 'Nombre Completo',
                   hint: 'Ej. Carlos Mendoza',
                   icon: Icons.person_outline,
                   controller: _nameController,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Ingresa tu nombre completo';
-                    }
-                    return null;
-                  },
+                  validator: (val) => val == null || val.isEmpty ? 'Ingresa tu nombre' : null,
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 16),
 
-                // Email field
                 _buildInputField(
                   label: 'Correo Electrónico',
                   hint: 'carlos@ejemplo.com',
                   icon: Icons.email_outlined,
                   controller: _emailController,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Ingresa tu correo';
-                    }
-                    return null;
-                  },
+                  validator: (val) => val == null || !val.contains('@') ? 'Correo inválido' : null,
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 16),
 
-                // Phone field
                 _buildInputField(
                   label: 'Número de Teléfono',
-                  hint: '+58 414 1234567',
+                  hint: '04141234567',
                   icon: Icons.phone_outlined,
                   controller: _phoneController,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Ingresa tu teléfono';
-                    }
-                    return null;
-                  },
+                  validator: (val) => val == null || val.isEmpty ? 'Ingresa tu teléfono' : null,
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 16),
 
-                // Info Alert
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppTheme.primaryBlue.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppTheme.primaryBlue.withOpacity(0.2)),
+                _buildInputField(
+                  label: 'RIF / Identificación Fiscal',
+                  hint: 'J-12345678-0',
+                  icon: Icons.badge_outlined,
+                  controller: _rifController,
+                  validator: (val) => val == null || val.isEmpty ? 'Ingresa tu RIF' : null,
+                ),
+                const SizedBox(height: 16),
+
+                if (!_isDriverTab) ...[
+                  _buildInputField(
+                    label: 'Dirección de Entrega Principal',
+                    hint: 'Av. Principal, Edif. Orinoco',
+                    icon: Icons.location_on_outlined,
+                    controller: _addressController,
+                    validator: (val) => val == null || val.isEmpty ? 'Ingresa tu dirección' : null,
                   ),
-                  child: const Row(
+                  const SizedBox(height: 24),
+                ] else ...[
+                  _buildInputField(
+                    label: 'Licencia de Conducir',
+                    hint: 'L-12345678',
+                    icon: Icons.card_membership,
+                    controller: _licenseController,
+                    validator: (val) => val == null || val.isEmpty ? 'Ingresa tu licencia' : null,
+                  ),
+                  const SizedBox(height: 16),
+
+                  Row(
                     children: [
-                      Icon(Icons.info_outline, color: AppTheme.primaryBlue, size: 18),
-                      SizedBox(width: 8),
                       Expanded(
-                        child: Text(
-                          'Te enviaremos un código SMS (OTP) para verificar.',
-                          style: TextStyle(color: AppTheme.primaryBlue, fontSize: 11, fontWeight: FontWeight.w500),
+                        child: _buildInputField(
+                          label: 'Marca Camión',
+                          hint: 'Ford',
+                          icon: Icons.directions_car,
+                          controller: _truckBrandController,
+                          validator: (val) => val == null || val.isEmpty ? 'Requerido' : null,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildInputField(
+                          label: 'Modelo',
+                          hint: 'F-350',
+                          icon: Icons.local_shipping,
+                          controller: _truckModelController,
+                          validator: (val) => val == null || val.isEmpty ? 'Requerido' : null,
                         ),
                       ),
                     ],
                   ),
-                ),
-                const SizedBox(height: 20),
+                  const SizedBox(height: 16),
 
-                // Delivery Address field
-                _buildInputField(
-                  label: 'Dirección de Entrega',
-                  hint: 'Ingresa tu dirección principal',
-                  icon: Icons.location_on_outlined,
-                  controller: _addressController,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Ingresa tu dirección';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 40),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildInputField(
+                          label: 'Placa Vehículo',
+                          hint: 'A42K890',
+                          icon: Icons.confirmation_number,
+                          controller: _truckPlateController,
+                          validator: (val) => val == null || val.isEmpty ? 'Requerido' : null,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildInputField(
+                          label: 'Tanque (Litros)',
+                          hint: '5000',
+                          icon: Icons.water_drop,
+                          controller: _truckCapacityController,
+                          validator: (val) => val == null || val.isEmpty ? 'Requerido' : null,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                ],
 
                 // Submit Button
                 ElevatedButton(
-                  onPressed: () {
-                    if (_formKey.currentState!.validate()) {
-                      final appState = context.read<AppState>();
-                      appState.userName = _nameController.text;
-                      appState.userEmail = _emailController.text;
-                      appState.userPhone = _phoneController.text;
-                      appState.deliveryAddress = _addressController.text;
-
-                      Navigator.pushAndRemoveUntil(
-                        context,
-                        MaterialPageRoute(builder: (context) => const ClientHomeScreen()),
-                        (route) => false,
-                      );
-                    }
-                  },
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text('Registrarme como Cliente'),
-                      SizedBox(width: 8),
-                      Icon(Icons.arrow_forward, size: 18),
-                    ],
-                  ),
+                  onPressed: _isLoading ? null : _handleRegister,
+                  child: _isLoading
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                        )
+                      : Text(_isDriverTab ? 'Registrarme como Conductor' : 'Registrarme como Cliente'),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 24),
               ],
             ),
           ),
@@ -212,7 +382,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.only(left: 4.0, bottom: 8.0),
+          padding: const EdgeInsets.only(left: 4.0, bottom: 6.0),
           child: Text(
             label,
             style: const TextStyle(
@@ -229,7 +399,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           decoration: InputDecoration(
             hintText: hint,
             prefixIcon: Icon(icon, size: 20),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           ),
         ),
       ],

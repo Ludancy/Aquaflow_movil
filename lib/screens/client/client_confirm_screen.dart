@@ -4,8 +4,21 @@ import '../../state/app_state.dart';
 import '../../theme.dart';
 import 'client_tracking_screen.dart';
 
-class ClientConfirmScreen extends StatelessWidget {
+class ClientConfirmScreen extends StatefulWidget {
   const ClientConfirmScreen({Key? key}) : super(key: key);
+
+  @override
+  State<ClientConfirmScreen> createState() => _ClientConfirmScreenState();
+}
+
+class _ClientConfirmScreenState extends State<ClientConfirmScreen> {
+  final _refController = TextEditingController(text: 'REF-984123');
+
+  @override
+  void dispose() {
+    _refController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -86,7 +99,7 @@ class ClientConfirmScreen extends StatelessWidget {
                   ),
                 ),
                 
-                const SizedBox(height: 32),
+                const SizedBox(height: 24),
                 
                 // Payment Method Header
                 const Text(
@@ -117,17 +130,28 @@ class ClientConfirmScreen extends StatelessWidget {
                   isSelected: appState.paymentMethod == 'Pago Móvil',
                   onTap: () => appState.setPaymentMethod('Pago Móvil'),
                 ),
+
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _refController,
+                  style: const TextStyle(color: AppTheme.textWhite, fontSize: 14),
+                  decoration: const InputDecoration(
+                    labelText: 'Número de Referencia de Pago',
+                    hintText: 'Ej. REF-123456',
+                    prefixIcon: Icon(Icons.numbers, size: 18),
+                  ),
+                ),
                 
                 const Spacer(),
                 
                 // Confirm Payment Button
                 ElevatedButton(
-                  onPressed: () {
-                    // Create simulated order
+                  onPressed: () async {
                     appState.createOrder();
-                    
-                    // Show confirmation modal sheet
-                    _showSuccessDialog(context);
+                    await appState.processOrderPayment(_refController.text.trim());
+                    if (context.mounted) {
+                      _showSuccessDialog(context);
+                    }
                   },
                   child: const Text('Confirmar y Solicitar'),
                 ),
@@ -208,14 +232,14 @@ class ClientConfirmScreen extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               const Text(
-                'Hemos enviado tu solicitud a los conductores cercanos. En breve serás asignado a una cisterna.',
+                'Hemos enviado tu solicitud a los conductores cercanos y registrado tu pago.',
                 style: TextStyle(color: AppTheme.textMuted, fontSize: 14),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 32),
               ElevatedButton(
                 onPressed: () {
-                  Navigator.pop(context); // Close sheet
+                  Navigator.pop(context);
                   Navigator.pushReplacement(
                     context,
                     MaterialPageRoute(

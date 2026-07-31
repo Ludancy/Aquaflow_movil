@@ -6,23 +6,77 @@ import '../../theme.dart';
 class DriverEarningsScreen extends StatelessWidget {
   const DriverEarningsScreen({Key? key}) : super(key: key);
 
+  void _showWithdrawDialog(BuildContext context, AppState appState) {
+    final amountCtrl = TextEditingController(text: '50.0');
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.surfaceDark,
+        title: const Text('Solicitar Retiro', style: TextStyle(color: AppTheme.textWhite)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Saldo Disponible: \$${appState.walletBalanceUsd.toStringAsFixed(2)}', style: const TextStyle(color: AppTheme.textMuted, fontSize: 13)),
+            const SizedBox(height: 16),
+            TextField(
+              controller: amountCtrl,
+              keyboardType: TextInputType.number,
+              style: const TextStyle(color: AppTheme.textWhite, fontSize: 14),
+              decoration: const InputDecoration(
+                labelText: 'Monto a retirar (\$)',
+                hintText: '50.00',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+          ElevatedButton(
+            onPressed: () async {
+              final amount = double.tryParse(amountCtrl.text.trim()) ?? 0.0;
+              if (amount > 0) {
+                final success = await appState.withdrawDriverWallet(amount);
+                if (ctx.mounted) Navigator.pop(ctx);
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(success ? '¡Retiro de \$$amount procesado!' : 'Saldo insuficiente para retiro'),
+                    ),
+                  );
+                }
+              }
+            },
+            child: const Text('Confirmar Retiro'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final appState = context.watch<AppState>();
     
-    // Hardcoded week earnings for UI visual demo
-    final List<double> weeklyEarnings = [60.0, 85.0, 45.0, 95.0, 110.0, appState.activeOrder == null ? 55.0 : 55.0 + appState.activeOrder!.price, 0.0];
+    final List<double> weeklyEarnings = List.generate(7, (i) => 0.0);
     final List<String> weekDays = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
-    final double maxEarn = weeklyEarnings.reduce((curr, next) => curr > next ? curr : next);
+    final double maxEarn = 0.0;
 
     return Scaffold(
       backgroundColor: AppTheme.backgroundDark,
       appBar: AppBar(
-        title: const Text('Ganancias', style: TextStyle(color: AppTheme.textWhite)),
+        title: const Text('Ganancias y Billetera', style: TextStyle(color: AppTheme.textWhite)),
         centerTitle: true,
         backgroundColor: Colors.transparent,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh, color: AppTheme.textWhite),
+            onPressed: () => appState.refreshDriverWallet(),
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24.0),
@@ -40,12 +94,12 @@ class DriverEarningsScreen extends StatelessWidget {
               child: Column(
                 children: [
                   const Text(
-                    'Balance total acumulado',
+                    'Balance total en billetera',
                     style: TextStyle(color: AppTheme.textMuted, fontSize: 13, fontWeight: FontWeight.w500),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    '\$${appState.totalDriverEarnings.toStringAsFixed(2)}',
+                    '\$${appState.walletBalanceUsd.toStringAsFixed(2)}',
                     style: const TextStyle(
                       color: AppTheme.textWhite,
                       fontSize: 36,
@@ -63,8 +117,15 @@ class DriverEarningsScreen extends StatelessWidget {
                       Container(width: 1, height: 24, color: AppTheme.borderDark),
                       _buildMiniStat('Calificación', '${appState.driverRating} ★'),
                       Container(width: 1, height: 24, color: AppTheme.borderDark),
-                      _buildMiniStat('Aceptación', '96%'),
+                      _buildMiniStat('Comisión', '12%'),
                     ],
+                  ),
+                  const SizedBox(height: 20),
+
+                  ElevatedButton.icon(
+                    onPressed: () => _showWithdrawDialog(context, appState),
+                    icon: const Icon(Icons.account_balance_wallet, size: 18),
+                    label: const Text('Solicitar Retiro de Billetera'),
                   ),
                 ],
               ),
@@ -91,7 +152,6 @@ class DriverEarningsScreen extends StatelessWidget {
               ),
               child: Column(
                 children: [
-                  // Bar Chart
                   SizedBox(
                     height: 150,
                     child: Row(
@@ -136,7 +196,7 @@ class DriverEarningsScreen extends StatelessWidget {
             
             // Driver trip history list
             const Text(
-              'Historial de Viajes',
+              'Historial de Viajes y Retiros',
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,

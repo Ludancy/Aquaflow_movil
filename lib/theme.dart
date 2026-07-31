@@ -5,6 +5,7 @@ class AppTheme {
   // Brand Dark Colors
   static const Color backgroundDark = Color(0xFF09121F); // Navy main background
   static const Color cardDark = Color(0xFF111E2E); // Darker blue card background
+  static const Color surfaceDark = Color(0xFF111E2E); // Surface dark color
   static const Color primaryBlue = Color(0xFF3498DB); // Bright sky blue accent
   
   static const Color borderDark = Color(0xFF1E2D3D); // Border/Divider dark color

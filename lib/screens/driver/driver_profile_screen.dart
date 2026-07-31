@@ -92,23 +92,12 @@ class DriverProfileScreen extends StatelessWidget {
                 _DriverInfoTile(
                   icon: Icons.local_shipping_outlined,
                   title: 'Modelo de camión',
-                  value: appState.driverTruck,
+                  value: appState.driverTruck.isNotEmpty ? appState.driverTruck : 'No registrado',
                 ),
                 _DriverInfoTile(
                   icon: Icons.badge_outlined,
                   title: 'Placa del vehículo',
-                  value: appState.driverPlate,
-                ),
-                _DriverInfoTile(
-                  icon: Icons.opacity_outlined,
-                  title: 'Capacidad nominal',
-                  value: '10.000 Litros',
-                ),
-                _DriverInfoTile(
-                  icon: Icons.verified_user_outlined,
-                  title: 'Certificado Sanitario',
-                  value: 'SACS-1289-V',
-                  textColor: AppTheme.success,
+                  value: appState.driverPlate.isNotEmpty ? appState.driverPlate : 'No registrada',
                 ),
               ],
             ),
@@ -199,7 +188,6 @@ class _DriverInfoTile extends StatelessWidget {
   final IconData icon;
   final String title;
   final String value;
-  final Color? textColor;
   final bool isLink;
   final VoidCallback? onTap;
 
@@ -207,7 +195,6 @@ class _DriverInfoTile extends StatelessWidget {
     required this.icon,
     required this.title,
     required this.value,
-    this.textColor,
     this.isLink = false,
     this.onTap,
   });
@@ -235,7 +222,7 @@ class _DriverInfoTile extends StatelessWidget {
         style: TextStyle(
           fontSize: 14,
           fontWeight: FontWeight.bold,
-          color: textColor ?? AppTheme.textWhite,
+          color: AppTheme.textWhite,
         ),
       ),
       trailing: isLink ? const Icon(Icons.arrow_forward_ios, size: 12, color: AppTheme.textMuted) : null,

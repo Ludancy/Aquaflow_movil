@@ -12,6 +12,27 @@ class AppState extends ChangeNotifier {
   // Backend Integration State
   bool isBackendConnected = false;
   String? activeTarifaId;
+  List<dynamic> backendTarifas = [];
+
+  // Active Logged User Identity
+  String? currentUserId;
+  String? currentClientId;
+  String? currentDriverId;
+
+  // Active User Info (Empty by default, populated strictly from DB/Registration)
+  String userName = '';
+  String userEmail = '';
+  String userPhone = '';
+  String deliveryAddress = '';
+  List<Map<String, dynamic>> userAddresses = [];
+
+  // Driver details (Empty by default)
+  String driverName = '';
+  String driverUnit = '';
+  String driverPhone = '';
+  String driverPlate = '';
+  String driverEmail = '';
+  String driverTruck = '';
 
   AppState() {
     initBackendConnection();
@@ -21,6 +42,7 @@ class AppState extends ChangeNotifier {
     isBackendConnected = await ApiService.checkHealth();
     if (isBackendConnected) {
       final tarifas = await ApiService.getTarifas();
+      backendTarifas = tarifas;
       if (tarifas.isNotEmpty) {
         activeTarifaId = tarifas.first['id_tarifa'];
       }
@@ -28,93 +50,85 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setCurrentUser(Map<String, dynamic> usuarioData, String roleStr) {
+    currentUserId = usuarioData['id_usuario'];
+    userName = usuarioData['nombre'] ?? '';
+    userEmail = usuarioData['email'] ?? '';
+    userPhone = usuarioData['telefono'] ?? '';
+
+    if (usuarioData['cliente'] != null) {
+      currentClientId = usuarioData['cliente']['id_cliente'];
+      if (usuarioData['cliente']['direcciones'] != null &&
+          (usuarioData['cliente']['direcciones'] as List).isNotEmpty) {
+        final dirs = usuarioData['cliente']['direcciones'] as List;
+        userAddresses = dirs.map((d) => {
+          'id_direccion': d['id_direccion'],
+          'etiqueta': d['etiqueta'],
+          'direccion_exacta': d['direccion_exacta'],
+          'coordenadas': d['coordenadas'],
+        }).toList();
+        deliveryAddress = userAddresses.first['direccion_exacta'];
+      }
+    }
+
+    if (usuarioData['cisternero'] != null) {
+      currentDriverId = usuarioData['cisternero']['id_cisternero'];
+      driverName = usuarioData['nombre'] ?? '';
+      driverEmail = usuarioData['email'] ?? '';
+      driverPhone = usuarioData['telefono'] ?? '';
+      
+      if (usuarioData['cisternero']['vehiculo'] != null) {
+        final v = usuarioData['cisternero']['vehiculo'];
+        driverTruck = '${v['marca'] ?? ''} ${v['modelo'] ?? ''}';
+        driverPlate = v['placa'] ?? '';
+        driverUnit = 'Unidad #${v['placa'] ?? ''}';
+      }
+      refreshDriverWallet();
+    }
+
+    if (roleStr == 'cisternero') {
+      _currentRole = AppRole.driver;
+    } else {
+      _currentRole = AppRole.client;
+    }
+
+    if (currentUserId != null && isBackendConnected) {
+      fetchUserOrders();
+    }
+
+    notifyListeners();
+  }
+
   // Global Role
   AppRole _currentRole = AppRole.client;
   AppRole get currentRole => _currentRole;
 
-  // Active User Info
-  String userName = 'Carlos Mendoza';
-  String userEmail = 'carlos@ejemplo.com';
-  String userPhone = '+58 414 1234567';
-  String deliveryAddress = 'Av. Principal Las Mercedes, Edf. Orinoco';
-
-  // Driver details for simulation
-  String driverName = 'Carlos M.';
-  String driverUnit = 'Unidad #42';
-  String driverPhone = '+58 414 987 6543';
-  String driverPlate = 'A42K890';
-  String driverEmail = 'carlos.m@aquaflow.com';
-  String driverTruck = 'Ford F-350 (Cisterna 10K L)';
-
   // Client Selection State
   int selectedLiters = 2000;
-  double selectedPrice = 45.00; // Base $40 + $5 Envío
-  String paymentMethod = 'Zelle'; // 'Zelle' or 'Pago Móvil'
+  double selectedPrice = 20.00;
+  String paymentMethod = 'Pago Móvil';
 
-  // Wallet Simulation
-  double walletBalanceUsd = 124.50;
-  double exchangeRate = 36.00; // 1 USD = 36 Bs.
+  // Wallet State (Empty by default)
+  double walletBalanceUsd = 0.0;
+  double exchangeRate = 36.00;
   
-  List<Map<String, dynamic>> savedPaymentMethods = [
-    {'type': 'Zelle', 'detail': 'juan.perez@email.com', 'checked': true},
-    {'type': 'Pago Móvil - Banesco', 'detail': '0414-***-1234', 'checked': true},
-  ];
+  List<Map<String, dynamic>> savedPaymentMethods = [];
+  List<Map<String, dynamic>> recentTransactions = [];
 
-  List<Map<String, dynamic>> recentTransactions = [
-    {'title': 'Pedido #8492', 'time': 'Hoy, 10:45 AM', 'amount': -25.00, 'type': 'order'},
-    {'title': 'Recarga Zelle', 'time': 'Ayer, 03:20 PM', 'amount': 50.00, 'type': 'deposit'},
-  ];
-
-  // Orders State (Matching the User's Screenshot Details)
+  // Orders State (Empty by default)
   WaterOrder? activeOrder;
-  
-  final List<WaterOrder> clientHistory = [
-    WaterOrder(
-      id: '5000L Cisterna',
-      dateTime: DateTime.now(), // active
-      liters: 5000,
-      price: 45.00,
-      address: 'Av. Principal Las Mercedes, Edf. Orinoco',
-      paymentMethod: 'Zelle',
-      status: OrderStatus.inTransit,
-      driverName: 'Carlos M.',
-      driverPhone: '+58 414 987 6543',
-      driverPlate: 'Unidad #42',
-    ),
-    WaterOrder(
-      id: '2000L Camioneta',
-      dateTime: DateTime.now().subtract(const Duration(hours: 4)),
-      liters: 2000,
-      price: 22.50,
-      address: 'Av. Principal Las Mercedes, Edf. Orinoco',
-      paymentMethod: 'Pago Móvil',
-      status: OrderStatus.delivered,
-      driverName: 'Ana G.',
-      driverPhone: '+58 424 555 1234',
-      driverPlate: 'Unidad #18',
-    ),
-    WaterOrder(
-      id: '10000L Cisterna Especial',
-      dateTime: DateTime.now().subtract(const Duration(days: 1)),
-      liters: 10000,
-      price: 85.00,
-      address: 'Av. Principal Las Mercedes, Edf. Orinoco',
-      paymentMethod: 'Zelle',
-      status: OrderStatus.cancelled,
-      driverName: 'Conductor no asignado',
-    ),
-  ];
+  final List<WaterOrder> clientHistory = [];
 
   // Driver State
   bool isDriverAvailable = true;
   List<WaterOrder> pendingDriverRequests = [];
   final List<WaterOrder> driverHistory = [];
-  double totalDriverEarnings = 450.0;
-  int tripsCompleted = 12;
-  double driverRating = 4.9;
+  double totalDriverEarnings = 0.0;
+  int tripsCompleted = 0;
+  double driverRating = 5.0;
 
   // Map Animation simulation
-  double simulationProgress = 0.5; // Starts at 0.5 to show it in course in mock
+  double simulationProgress = 0.5;
   Timer? _simulationTimer;
 
   void setRole(AppRole role) {
@@ -138,10 +152,100 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  // Address CRUD
+  Future<bool> addNewAddress(String label, String address, String coords) async {
+    final newAddr = {
+      'etiqueta': label,
+      'direccion_exacta': address,
+      'coordenadas': coords,
+    };
+    userAddresses.add(newAddr);
+    deliveryAddress = address;
+
+    if (isBackendConnected && currentClientId != null) {
+      final res = await ApiService.addAddress(
+        clientId: currentClientId!,
+        etiqueta: label,
+        direccionExacta: address,
+        coordenadas: coords,
+      );
+      notifyListeners();
+      return res != null;
+    }
+    notifyListeners();
+    return true;
+  }
+
+  // Fetch backend orders strictly from database
+  Future<void> fetchUserOrders() async {
+    if (!isBackendConnected || currentUserId == null) return;
+
+    final ordersData = await ApiService.getUserOrders(currentUserId!);
+    clientHistory.clear();
+    pendingDriverRequests.clear();
+    activeOrder = null;
+
+    if (ordersData.isNotEmpty) {
+      for (var o in ordersData) {
+        final orderStatusStr = o['estado_actual'] as String? ?? 'Pendiente';
+        OrderStatus status = OrderStatus.requested;
+        if (orderStatusStr == 'Asignado' || orderStatusStr == 'Aceptado') {
+          status = OrderStatus.accepted;
+        } else if (orderStatusStr == 'En Ruta') {
+          status = OrderStatus.inTransit;
+        } else if (orderStatusStr == 'Entregado') {
+          status = OrderStatus.delivered;
+        } else if (orderStatusStr == 'Cancelado') {
+          status = OrderStatus.cancelled;
+        }
+
+        final driverObj = o['cisternero'];
+        String? dName;
+        String? dPhone;
+        String? dPlate;
+        if (driverObj != null && driverObj['usuario'] != null) {
+          dName = driverObj['usuario']['nombre'];
+          dPhone = driverObj['usuario']['telefono'];
+          if (driverObj['vehiculo'] != null) {
+            dPlate = driverObj['vehiculo']['placa'];
+          }
+        }
+
+        final mappedOrder = WaterOrder(
+          id: o['id_pedido'] ?? 'Pedido',
+          dateTime: DateTime.tryParse(o['fecha_creacion'] ?? '') ?? DateTime.now(),
+          liters: (o['tarifa'] != null && o['tarifa']['volumen_litros'] != null)
+              ? (o['tarifa']['volumen_litros'] as num).toInt()
+              : 2000,
+          price: (o['monto_total'] as num?)?.toDouble() ?? selectedPrice,
+          address: o['coordenadas_destino'] ?? deliveryAddress,
+          paymentMethod: 'Pago Móvil',
+          status: status,
+          driverName: dName,
+          driverPhone: dPhone,
+          driverPlate: dPlate,
+        );
+
+        if (status == OrderStatus.requested || status == OrderStatus.accepted || status == OrderStatus.inTransit) {
+          if (activeOrder == null) {
+            activeOrder = mappedOrder;
+          }
+          if (orderStatusStr == 'Pendiente' || orderStatusStr == 'Asignado') {
+            pendingDriverRequests.add(mappedOrder);
+          }
+        }
+
+        clientHistory.add(mappedOrder);
+      }
+    }
+    notifyListeners();
+  }
+
   // Create order from client
   void createOrder() async {
+    final orderId = 'ORD-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
     activeOrder = WaterOrder(
-      id: '${selectedLiters}L Cisterna',
+      id: orderId,
       dateTime: DateTime.now(),
       liters: selectedLiters,
       price: selectedPrice,
@@ -150,32 +254,57 @@ class AppState extends ChangeNotifier {
       status: OrderStatus.requested,
     );
     
-    // Insert at the top of history
     clientHistory.insert(0, activeOrder!);
-    
-    // Add to driver's pending list to simulate incoming request
     pendingDriverRequests.clear();
     pendingDriverRequests.add(activeOrder!);
 
-    if (isBackendConnected && activeTarifaId != null) {
-      // Send request to live backend server
-      ApiService.requestOrder(
-        clientId: 'cliente-id-placeholder',
-        tarifaId: activeTarifaId!,
-        destinationCoords: '10.48,-66.90',
-      );
+    if (isBackendConnected) {
+      final clientId = currentClientId;
+      final tarifaId = activeTarifaId;
+
+      if (clientId != null && tarifaId != null) {
+        final res = await ApiService.requestOrder(
+          clientId: clientId,
+          tarifaId: tarifaId,
+          destinationCoords: deliveryAddress.isNotEmpty ? deliveryAddress : '10.48,-66.90',
+        );
+
+        if (res != null && res['data'] != null && res['data']['id_pedido'] != null) {
+          activeOrder = WaterOrder(
+            id: res['data']['id_pedido'],
+            dateTime: DateTime.now(),
+            liters: selectedLiters,
+            price: selectedPrice,
+            address: deliveryAddress,
+            paymentMethod: paymentMethod,
+            status: OrderStatus.requested,
+          );
+          if (clientHistory.isNotEmpty) {
+            clientHistory[0] = activeOrder!;
+          }
+        }
+      }
     }
     
     notifyListeners();
   }
 
-  // Cancel order (Client or Driver)
-  void cancelActiveOrder() {
+  // Cancel order
+  void cancelActiveOrder({String reason = 'Cancelado por usuario'}) async {
     if (activeOrder != null) {
+      final oldOrderId = activeOrder!.id;
       activeOrder!.status = OrderStatus.cancelled;
       pendingDriverRequests.clear();
       activeOrder = null;
       stopSimulation();
+
+      if (isBackendConnected) {
+        await ApiService.cancelOrder(
+          oldOrderId,
+          reason,
+          _currentRole == AppRole.client ? 'cliente' : 'cisternero',
+        );
+      }
     }
     notifyListeners();
   }
@@ -186,7 +315,7 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void driverAcceptOrder(WaterOrder order) {
+  void driverAcceptOrder(WaterOrder order) async {
     order.status = OrderStatus.accepted;
     order.driverName = driverName;
     order.driverPhone = driverPhone;
@@ -194,10 +323,12 @@ class AppState extends ChangeNotifier {
     
     pendingDriverRequests.remove(order);
     activeOrder = order;
-    
     notifyListeners();
+
+    if (isBackendConnected && currentDriverId != null) {
+      await ApiService.acceptOrder(order.id, currentDriverId!);
+    }
     
-    // Auto transition to "inTransit" after 3 seconds
     Timer(const Duration(seconds: 3), () {
       if (activeOrder != null && activeOrder!.status == OrderStatus.accepted) {
         driverStartTransit();
@@ -210,30 +341,47 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void driverStartTransit() {
+  void driverStartTransit() async {
     if (activeOrder != null) {
       activeOrder!.status = OrderStatus.inTransit;
       notifyListeners();
       startSimulation();
+
+      if (isBackendConnected) {
+        await ApiService.updateOrderStatus(activeOrder!.id, 'En Ruta');
+        if (currentDriverId != null) {
+          ApiService.updateLocation(
+            driverId: currentDriverId!,
+            orderId: activeOrder!.id,
+            latitud: 10.48,
+            longitud: -66.90,
+          );
+        }
+      }
     }
   }
 
-  void driverCompleteOrder() {
+  void driverCompleteOrder() async {
     if (activeOrder != null) {
+      final completedId = activeOrder!.id;
       activeOrder!.status = OrderStatus.delivered;
       driverHistory.insert(0, activeOrder!);
       
-      // Deduct from wallet if card/Zelle was selected or simulate wallet change
-      walletBalanceUsd -= activeOrder!.price;
+      walletBalanceUsd += activeOrder!.price;
       recentTransactions.insert(0, {
-        'title': 'Pedido #${1000 + clientHistory.length}',
+        'title': 'Pedido #${completedId.substring(0, completedId.length > 8 ? 8 : completedId.length)}',
         'time': 'Hoy, ${DateTime.now().hour}:${DateTime.now().minute.toString().padLeft(2, '0')}',
-        'amount': -activeOrder!.price,
+        'amount': activeOrder!.price,
         'type': 'order',
       });
       
       totalDriverEarnings += activeOrder!.price;
       tripsCompleted += 1;
+
+      if (isBackendConnected) {
+        await ApiService.updateOrderStatus(completedId, 'Entregado');
+        refreshDriverWallet();
+      }
       
       activeOrder = null;
       stopSimulation();
@@ -241,7 +389,91 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  // Payment process
+  Future<bool> processOrderPayment(String reference) async {
+    if (activeOrder != null) {
+      recentTransactions.insert(0, {
+        'title': 'Pago Pedido (${activeOrder!.paymentMethod})',
+        'time': 'Hoy, ${DateTime.now().hour}:${DateTime.now().minute.toString().padLeft(2, '0')}',
+        'amount': -activeOrder!.price,
+        'type': 'order',
+      });
+      
+      if (isBackendConnected) {
+        final res = await ApiService.processPayment(
+          orderId: activeOrder!.id,
+          metodo: paymentMethod,
+          referencia: reference,
+          montoPagado: activeOrder!.price,
+        );
+        notifyListeners();
+        return res != null;
+      }
+    }
+    notifyListeners();
+    return true;
+  }
+
+  // Support & Rating
+  Future<bool> submitRating({required int puntaje, String? comentario}) async {
+    if (isBackendConnected && currentClientId != null && currentDriverId != null) {
+      final res = await ApiService.submitRating(
+        driverId: currentDriverId!,
+        clientId: currentClientId!,
+        puntaje: puntaje,
+        comentario: comentario,
+        rolEmisor: _currentRole == AppRole.client ? 'Cliente' : 'Cisternero',
+      );
+      return res != null;
+    }
+    return true;
+  }
+
+  Future<bool> submitDispute({required String tipo, required String descripcion}) async {
+    if (activeOrder != null && isBackendConnected && currentUserId != null) {
+      final res = await ApiService.submitDispute(
+        orderId: activeOrder!.id,
+        reportadoPor: currentUserId!,
+        tipo: tipo,
+        descripcion: descripcion,
+      );
+      return res != null;
+    }
+    return true;
+  }
+
   // Wallet Methods
+  Future<void> refreshDriverWallet() async {
+    if (isBackendConnected && currentDriverId != null) {
+      final wData = await ApiService.getWallet(currentDriverId!);
+      if (wData != null && wData['balance_billetera'] != null) {
+        walletBalanceUsd = (wData['balance_billetera'] as num).toDouble();
+        notifyListeners();
+      }
+    }
+  }
+
+  Future<bool> withdrawDriverWallet(double amount) async {
+    if (walletBalanceUsd >= amount) {
+      walletBalanceUsd -= amount;
+      recentTransactions.insert(0, {
+        'title': 'Retiro Billetera',
+        'time': 'Hoy, ${DateTime.now().hour}:${DateTime.now().minute.toString().padLeft(2, '0')}',
+        'amount': -amount,
+        'type': 'withdraw',
+      });
+
+      if (isBackendConnected && currentDriverId != null) {
+        final res = await ApiService.withdrawWallet(currentDriverId!, amount);
+        notifyListeners();
+        return res != null;
+      }
+      notifyListeners();
+      return true;
+    }
+    return false;
+  }
+
   void rechargeWallet(double amount, String method) {
     walletBalanceUsd += amount;
     recentTransactions.insert(0, {
