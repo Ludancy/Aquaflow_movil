@@ -1,135 +1,118 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
+import '../theme.dart';
 
-class MockMapWidget extends StatefulWidget {
+class RealMapWidget extends StatelessWidget {
+  final LatLng? clientLocation;
+  final LatLng? driverLocation;
   final bool showRoute;
-  const MockMapWidget({Key? key, this.showRoute = true}) : super(key: key);
+  final double zoom;
 
-  @override
-  State<MockMapWidget> createState() => _MockMapWidgetState();
-}
-
-class _MockMapWidgetState extends State<MockMapWidget> with SingleTickerProviderStateMixin {
-  late AnimationController _pulseController;
-
-  @override
-  void initState() {
-    super.initState();
-    _pulseController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 2),
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _pulseController.dispose();
-    super.dispose();
-  }
+  const RealMapWidget({
+    Key? key,
+    this.clientLocation,
+    this.driverLocation,
+    this.showRoute = true,
+    this.zoom = 14.0,
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: const Color(0xFF08101C), // Deep night blue map background
-      child: AnimatedBuilder(
-        animation: _pulseController,
-        builder: (context, child) {
-          return CustomPaint(
-            size: Size.infinite,
-            painter: MapPainter(
-              pulseValue: _pulseController.value,
-            ),
-          );
-        },
+    // Coordinates default: Caracas, Venezuela (10.4806, -66.9036)
+    final clientPos = clientLocation ?? const LatLng(10.4806, -66.9036);
+    final driverPos = driverLocation ?? LatLng(clientPos.latitude + 0.012, clientPos.longitude - 0.015);
+
+    final routePoints = [
+      driverPos,
+      LatLng(driverPos.latitude - 0.004, driverPos.longitude + 0.005),
+      LatLng(driverPos.latitude - 0.008, driverPos.longitude + 0.009),
+      clientPos,
+    ];
+
+    return FlutterMap(
+      options: MapOptions(
+        initialCenter: clientPos,
+        initialZoom: zoom,
+        interactionOptions: const InteractionOptions(
+          flags: InteractiveFlag.all,
+        ),
       ),
+      children: [
+        // OpenStreetMap 100% Free Tile Layer
+        TileLayer(
+          urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+          userAgentPackageName: 'com.aguaexpress.aguaexpress',
+        ),
+
+        // Route Polyline
+        if (showRoute)
+          PolylineLayer(
+            polylines: [
+              Polyline(
+                points: routePoints,
+                strokeWidth: 4.5,
+                color: AppTheme.primaryBlue,
+              ),
+            ],
+          ),
+
+        // Markers
+        MarkerLayer(
+          markers: [
+            // Client Location Marker
+            Marker(
+              point: clientPos,
+              width: 50,
+              height: 50,
+              child: Column(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: AppTheme.cardDark,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: AppTheme.primaryBlue, width: 2),
+                    ),
+                    child: const Icon(
+                      Icons.home,
+                      color: AppTheme.primaryBlue,
+                      size: 20,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Driver Cistern Truck Marker
+            Marker(
+              point: driverPos,
+              width: 50,
+              height: 50,
+              child: Column(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF00FFC2),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.black, width: 2),
+                    ),
+                    child: const Icon(
+                      Icons.local_shipping,
+                      color: Colors.black,
+                      size: 20,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }
 
-class MapPainter extends CustomPainter {
-  final double pulseValue;
-
-  MapPainter({
-    required this.pulseValue,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2 + 30); // Center of grid slightly offset down
-
-    // 1. Paint concentric radial grid circles (Teal glowing lines)
-    final gridPaint = Paint()
-      ..color = const Color(0xFF00B4D8).withOpacity(0.12)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.0;
-
-    final roadPaint = Paint()
-      ..color = const Color(0xFF00B4D8).withOpacity(0.24)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.0;
-
-    // Concentric circles representing streets
-    final List<double> radii = [40, 85, 130, 180, 230, 290, 360];
-    for (int i = 0; i < radii.length; i++) {
-      canvas.drawCircle(center, radii[i], i % 2 == 0 ? roadPaint : gridPaint);
-    }
-
-    // 2. Paint radial lines representing roads projecting outward from center
-    final int lineCount = 16;
-    for (int i = 0; i < lineCount; i++) {
-      final angle = (i * 2 * math.pi) / lineCount;
-      final start = Offset(
-        center.dx + 20 * math.cos(angle),
-        center.dy + 20 * math.sin(angle),
-      );
-      final end = Offset(
-        center.dx + 400 * math.cos(angle),
-        center.dy + 400 * math.sin(angle),
-      );
-      canvas.drawLine(start, end, i % 3 == 0 ? roadPaint : gridPaint);
-    }
-
-    // Draw some organic crossroad connects
-    final connectPaint = Paint()
-      ..color = const Color(0xFF00B4D8).withOpacity(0.18)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5;
-    
-    // Draw secondary grid lines to look organic
-    for (double r in [110, 205, 260]) {
-      final Path arcPath = Path();
-      arcPath.addArc(
-        Rect.fromCircle(center: center, radius: r),
-        math.pi / 6,
-        math.pi / 2,
-      );
-      arcPath.addArc(
-        Rect.fromCircle(center: center, radius: r),
-        math.pi,
-        math.pi / 3,
-      );
-      canvas.drawPath(arcPath, connectPaint);
-    }
-
-    // 3. Draw pulsing user location pin (blue glowing dot) in the center of the radial grid
-    final glowPaint = Paint()
-      ..color = const Color(0xFF3498DB).withOpacity(1.0 - pulseValue)
-      ..style = PaintingStyle.fill;
-    canvas.drawCircle(center, 22.0 * pulseValue, glowPaint);
-
-    final innerGlowPaint = Paint()
-      ..color = const Color(0xFF3498DB).withOpacity(0.4)
-      ..style = PaintingStyle.fill;
-    canvas.drawCircle(center, 10.0, innerGlowPaint);
-
-    final dotPaint = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.fill;
-    canvas.drawCircle(center, 5.0, dotPaint);
-  }
-
-  @override
-  bool shouldRepaint(covariant MapPainter oldDelegate) {
-    return oldDelegate.pulseValue != pulseValue;
-  }
-}
+// Alias for backwards compatibility with existing screens
+typedef MockMapWidget = RealMapWidget;
