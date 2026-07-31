@@ -185,17 +185,46 @@ class _LoginScreenState extends State<LoginScreen> {
       setState(() => _isLoading = false);
 
       if (res != null) {
-        setState(() {
-          _devOtp = res['otp_dev'];
-        });
-        if (context.mounted) {
-          _showOtpModal(context, inputId, !_isDriver);
+        final statusCode = res['statusCode'];
+        final data = res['data'];
+
+        if (statusCode == 200) {
+          setState(() {
+            _devOtp = data['otp_dev'];
+          });
+          if (context.mounted) {
+            _showOtpModal(context, inputId, !_isDriver);
+          }
+        } else {
+          final errorMsg = data?['error'] ?? 'El usuario no está registrado. Debe registrarse primero.';
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(errorMsg),
+                backgroundColor: AppTheme.error,
+              ),
+            );
+          }
         }
       } else {
-        _directLogin(appState);
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Error al conectar con el servidor.'),
+              backgroundColor: AppTheme.error,
+            ),
+          );
+        }
       }
     } else {
-      _directLogin(appState);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('El usuario no está registrado en la base de datos PostgreSQL. Regístrese primero.'),
+            backgroundColor: AppTheme.error,
+          ),
+        );
+      }
     }
   }
 

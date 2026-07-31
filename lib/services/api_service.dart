@@ -59,9 +59,11 @@ class ApiService {
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'telefono': phone}),
       );
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
-      }
+      final body = jsonDecode(response.body);
+      return {
+        'statusCode': response.statusCode,
+        'data': body,
+      };
     } catch (e) {
       debugPrint('Login error: $e');
     }
