@@ -16,17 +16,16 @@ class ApiService {
         if (authToken != null) 'Authorization': 'Bearer $authToken',
       };
 
+  // Default apunta a producción (Render); override con
+  // --dart-define=API_BASE_URL=http://10.0.2.2:3000 para desarrollo local.
+  static const String _apiBaseUrlOverride =
+      String.fromEnvironment('API_BASE_URL');
+
   static String get baseUrl {
-    if (kIsWeb) {
-      return 'http://localhost:3000';
-    } else {
-      try {
-        if (Platform.isAndroid) {
-          return 'http://10.0.2.2:3000';
-        }
-      } catch (_) {}
-      return 'http://localhost:3000';
+    if (_apiBaseUrlOverride.isNotEmpty) {
+      return _apiBaseUrlOverride;
     }
+    return 'https://aquaflow-api-qs31.onrender.com';
   }
 
   // Health check endpoint
@@ -63,13 +62,13 @@ class ApiService {
     return [];
   }
 
-  // Auth: Request OTP login (público)
-  static Future<Map<String, dynamic>?> login(String phone) async {
+  // Auth: Login directo por teléfono o correo + contraseña (público)
+  static Future<Map<String, dynamic>?> login(String identificador, String password) async {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/api/v1/auth/login'),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'telefono': phone}),
+        body: jsonEncode({'identificador': identificador, 'password': password}),
       );
       final body = jsonDecode(response.body);
       return {
@@ -82,28 +81,33 @@ class ApiService {
     return null;
   }
 
-  // Auth: Verify OTP code (público; devuelve el token de sesión)
-  static Future<Map<String, dynamic>?> verifyOtp(String phone, String otp) async {
+  // Auth: Send registration OTP to email (público; requerido antes de registrar cuenta nueva)
+  static Future<Map<String, dynamic>?> sendRegistrationOtp(String email) async {
     try {
       final response = await http.post(
-        Uri.parse('$baseUrl/api/v1/auth/verify-otp'),
+        Uri.parse('$baseUrl/api/v1/auth/send-registration-otp'),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'telefono': phone, 'otp': otp}),
+        body: jsonEncode({'email': email}),
       );
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
-      }
+      return {
+        'statusCode': response.statusCode,
+        'data': jsonDecode(response.body),
+      };
     } catch (e) {
-      debugPrint('Verify OTP error: $e');
+      debugPrint('Send registration OTP error: $e');
     }
     return null;
   }
 
   // Users: Register new client (público; devuelve el token de sesión)
+  // Nota: siempre devuelve {statusCode, data} -- inclusive en errores (400/409/500) --
+  // para que el llamador pueda mostrar el mensaje real de validación, no solo null.
   static Future<Map<String, dynamic>?> registerClient({
     required String nombre,
     required String telefono,
     required String email,
+    required String otp,
+    required String password,
     String? identificacionFiscal,
   }) async {
     try {
@@ -114,12 +118,15 @@ class ApiService {
           'nombre': nombre,
           'telefono': telefono,
           'email': email,
+          'otp': otp,
+          'password': password,
           if (identificacionFiscal != null) 'identificacion_fiscal': identificacionFiscal,
         }),
       );
-      if (response.statusCode == 201 || response.statusCode == 200) {
-        return jsonDecode(response.body);
-      }
+      return {
+        'statusCode': response.statusCode,
+        'data': jsonDecode(response.body),
+      };
     } catch (e) {
       debugPrint('Register client error: $e');
     }
@@ -127,10 +134,13 @@ class ApiService {
   }
 
   // Users: Driver onboarding (público; devuelve el token de sesión)
+  // Nota: siempre devuelve {statusCode, data}, ver comentario en registerClient.
   static Future<Map<String, dynamic>?> driverOnboarding({
     required String nombre,
     required String telefono,
     required String email,
+    required String otp,
+    required String password,
     required String licenciaConducir,
     required String rifPersonal,
     required Map<String, dynamic> vehiculo,
@@ -143,18 +153,41 @@ class ApiService {
           'nombre': nombre,
           'telefono': telefono,
           'email': email,
+          'otp': otp,
+          'password': password,
           'licencia_conducir': licenciaConducir,
           'rif_personal': rifPersonal,
           'vehiculo': vehiculo,
         }),
       );
-      if (response.statusCode == 201 || response.statusCode == 200) {
-        return jsonDecode(response.body);
-      }
+      return {
+        'statusCode': response.statusCode,
+        'data': jsonDecode(response.body),
+      };
     } catch (e) {
       debugPrint('Driver onboarding error: $e');
     }
     return null;
+  }
+
+  // Extrae un mensaje legible de una respuesta de error del backend.
+  // Cubre tanto errores de validación de Zod ({errors: [{field, message}]})
+  // como errores simples de controlador ({error: '...'} / {message: '...'}).
+  static String extractErrorMessage(
+    dynamic body, {
+    String fallback = 'Ocurrió un error inesperado. Intenta de nuevo.',
+  }) {
+    if (body is! Map) return fallback;
+    final errors = body['errors'];
+    if (errors is List && errors.isNotEmpty) {
+      final first = errors.first;
+      if (first is Map && first['message'] != null) {
+        return first['message'].toString();
+      }
+    }
+    if (body['error'] != null) return body['error'].toString();
+    if (body['message'] != null) return body['message'].toString();
+    return fallback;
   }
 
   // Users: Get profile details (requiere sesión)

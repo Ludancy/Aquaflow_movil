@@ -3,11 +3,12 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../theme.dart';
 
-class RealMapWidget extends StatelessWidget {
+class RealMapWidget extends StatefulWidget {
   final LatLng? clientLocation;
   final LatLng? driverLocation;
   final bool showRoute;
   final double zoom;
+  final MapController? controller;
 
   const RealMapWidget({
     Key? key,
@@ -15,13 +16,49 @@ class RealMapWidget extends StatelessWidget {
     this.driverLocation,
     this.showRoute = true,
     this.zoom = 14.0,
+    this.controller,
   }) : super(key: key);
+
+  @override
+  State<RealMapWidget> createState() => _RealMapWidgetState();
+}
+
+class _RealMapWidgetState extends State<RealMapWidget> {
+  late final MapController _mapController;
+  late final bool _ownsController;
+
+  @override
+  void initState() {
+    super.initState();
+    _ownsController = widget.controller == null;
+    _mapController = widget.controller ?? MapController();
+  }
+
+  @override
+  void didUpdateWidget(covariant RealMapWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final newLoc = widget.clientLocation;
+    if (newLoc != null && newLoc != oldWidget.clientLocation) {
+      // El buscador (u otra fuente) movió la ubicación de referencia: recentrar el mapa.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _mapController.move(newLoc, _mapController.camera.zoom);
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    if (_ownsController) {
+      _mapController.dispose();
+    }
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     // Coordinates default: Caracas, Venezuela (10.4806, -66.9036)
-    final clientPos = clientLocation ?? const LatLng(10.4806, -66.9036);
-    final driverPos = driverLocation ?? LatLng(clientPos.latitude + 0.012, clientPos.longitude - 0.015);
+    final clientPos = widget.clientLocation ?? const LatLng(10.4806, -66.9036);
+    final driverPos = widget.driverLocation ?? LatLng(clientPos.latitude + 0.012, clientPos.longitude - 0.015);
 
     final routePoints = [
       driverPos,
@@ -31,22 +68,37 @@ class RealMapWidget extends StatelessWidget {
     ];
 
     return FlutterMap(
+      mapController: _mapController,
       options: MapOptions(
         initialCenter: clientPos,
-        initialZoom: zoom,
+        initialZoom: widget.zoom,
         interactionOptions: const InteractionOptions(
           flags: InteractiveFlag.all,
         ),
       ),
       children: [
-        // OpenStreetMap 100% Free Tile Layer
+        // CARTO Dark Matter — tiles oscuras gratuitas (sin API key), en sintonía con
+        // el tema navy/azul de la app en vez del blanco de OSM estándar.
         TileLayer(
-          urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+          urlTemplate: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+          subdomains: const ['a', 'b', 'c', 'd'],
           userAgentPackageName: 'com.aguaexpress.aguaexpress',
         ),
 
+        // Atribución requerida por CARTO/OpenStreetMap, con estilo acorde al tema oscuro
+        RichAttributionWidget(
+          alignment: AttributionAlignment.bottomLeft,
+          popupInitialDisplayDuration: const Duration(seconds: 3),
+          showFlutterMapAttribution: false,
+          popupBackgroundColor: AppTheme.cardDark,
+          attributions: const [
+            TextSourceAttribution('© OpenStreetMap contributors'),
+            TextSourceAttribution('© CARTO'),
+          ],
+        ),
+
         // Route Polyline
-        if (showRoute)
+        if (widget.showRoute)
           PolylineLayer(
             polylines: [
               Polyline(

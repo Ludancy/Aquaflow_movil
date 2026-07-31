@@ -21,6 +21,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _phoneController = TextEditingController();
   final _addressController = TextEditingController();
   final _rifController = TextEditingController();
+  final _passwordController = TextEditingController();
 
   // Driver fields
   final _licenseController = TextEditingController();
@@ -28,6 +29,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _truckModelController = TextEditingController();
   final _truckPlateController = TextEditingController();
   final _truckCapacityController = TextEditingController();
+  final _otpController = TextEditingController();
 
   late bool _isDriverTab;
   bool _isLoading = false;
@@ -45,11 +47,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _phoneController.dispose();
     _addressController.dispose();
     _rifController.dispose();
+    _passwordController.dispose();
     _licenseController.dispose();
     _truckBrandController.dispose();
     _truckModelController.dispose();
     _truckPlateController.dispose();
     _truckCapacityController.dispose();
+    _otpController.dispose();
     super.dispose();
   }
 
@@ -57,81 +61,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     final appState = context.read<AppState>();
-    setState(() => _isLoading = true);
 
-    if (appState.isBackendConnected) {
-      if (!_isDriverTab) {
-        // Client registration
-        final res = await ApiService.registerClient(
-          nombre: _nameController.text.trim(),
-          telefono: _phoneController.text.trim(),
-          email: _emailController.text.trim(),
-          identificacionFiscal: _rifController.text.trim(),
-        );
-
-        setState(() => _isLoading = false);
-
-        if (res != null && res['data'] != null) {
-          appState.setCurrentUser(res['data'], 'cliente');
-          if (_addressController.text.isNotEmpty) {
-            await appState.addNewAddress(
-              'Principal',
-              _addressController.text.trim(),
-              '10.48,-66.90',
-            );
-          }
-          if (mounted) {
-            Navigator.pushAndRemoveUntil(
-              context,
-              MaterialPageRoute(builder: (context) => const ClientHomeScreen()),
-              (route) => false,
-            );
-          }
-        } else {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Error al registrar cliente (posible email duplicado)')),
-            );
-          }
-        }
-      } else {
-        // Driver onboarding
-        final res = await ApiService.driverOnboarding(
-          nombre: _nameController.text.trim(),
-          telefono: _phoneController.text.trim(),
-          email: _emailController.text.trim(),
-          licenciaConducir: _licenseController.text.trim(),
-          rifPersonal: _rifController.text.trim(),
-          vehiculo: {
-            'marca': _truckBrandController.text.trim(),
-            'modelo': _truckModelController.text.trim(),
-            'placa': _truckPlateController.text.trim(),
-            'capacidad_tanque': double.tryParse(_truckCapacityController.text) ?? 5000.0,
-          },
-        );
-
-        setState(() => _isLoading = false);
-
-        if (res != null && res['data'] != null) {
-          appState.setCurrentUser(res['data'], 'cisternero');
-          if (mounted) {
-            Navigator.pushAndRemoveUntil(
-              context,
-              MaterialPageRoute(builder: (context) => const DriverHomeScreen()),
-              (route) => false,
-            );
-          }
-        } else {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Error al registrar conductor')),
-            );
-          }
-        }
-      }
-    } else {
-      // Offline direct simulation
-      setState(() => _isLoading = false);
+    if (!appState.isBackendConnected) {
+      // Offline direct simulation (sin backend no hay forma de enviar/verificar OTP)
       appState.userName = _nameController.text;
       appState.userEmail = _emailController.text;
       appState.userPhone = _phoneController.text;
@@ -150,7 +82,162 @@ class _RegisterScreenState extends State<RegisterScreen> {
           (route) => false,
         );
       }
+      return;
     }
+
+    setState(() => _isLoading = true);
+    final email = _emailController.text.trim();
+    final otpRes = await ApiService.sendRegistrationOtp(email);
+    setState(() => _isLoading = false);
+
+    final otpBody = otpRes?['data'];
+    if (otpRes == null || otpRes['statusCode'] != 200) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(ApiService.extractErrorMessage(otpBody))),
+        );
+      }
+      return;
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Código enviado a $email')),
+      );
+      _showOtpModal(appState, email);
+    }
+  }
+
+  void _showOtpModal(AppState appState, String email) {
+    _otpController.clear();
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppTheme.surfaceDark,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        bool isSubmitting = false;
+        return StatefulBuilder(
+          builder: (ctx, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+                top: 24,
+                left: 24,
+                right: 24,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text(
+                    'Verifica tu correo',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppTheme.textWhite),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Ingresa el código de 6 dígitos enviado a $email.',
+                    style: const TextStyle(color: AppTheme.textMuted, fontSize: 13),
+                  ),
+                  const SizedBox(height: 20),
+                  TextField(
+                    controller: _otpController,
+                    keyboardType: TextInputType.number,
+                    style: const TextStyle(color: AppTheme.textWhite, fontSize: 20, letterSpacing: 4),
+                    textAlign: TextAlign.center,
+                    decoration: const InputDecoration(
+                      labelText: 'Código OTP (6 dígitos)',
+                      hintText: '123456',
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  ElevatedButton(
+                    onPressed: isSubmitting
+                        ? null
+                        : () async {
+                            final code = _otpController.text.trim();
+                            if (code.isEmpty) return;
+                            setModalState(() => isSubmitting = true);
+
+                            final password = _passwordController.text.trim();
+                            final res = !_isDriverTab
+                                ? await ApiService.registerClient(
+                                    nombre: _nameController.text.trim(),
+                                    telefono: _phoneController.text.trim(),
+                                    email: email,
+                                    otp: code,
+                                    password: password,
+                                    identificacionFiscal: _rifController.text.trim(),
+                                  )
+                                : await ApiService.driverOnboarding(
+                                    nombre: _nameController.text.trim(),
+                                    telefono: _phoneController.text.trim(),
+                                    email: email,
+                                    otp: code,
+                                    password: password,
+                                    licenciaConducir: _licenseController.text.trim(),
+                                    rifPersonal: _rifController.text.trim(),
+                                    vehiculo: {
+                                      'marca': _truckBrandController.text.trim(),
+                                      'modelo': _truckModelController.text.trim(),
+                                      'placa': _truckPlateController.text.trim(),
+                                      'capacidad_tanque': double.tryParse(_truckCapacityController.text) ?? 5000.0,
+                                    },
+                                  );
+
+                            setModalState(() => isSubmitting = false);
+
+                            final body = res?['data'];
+                            final statusCode = res?['statusCode'];
+                            if (res != null && (statusCode == 200 || statusCode == 201)) {
+                              appState.setAuthToken(body['token']);
+                              appState.setCurrentUser(body['data'], _isDriverTab ? 'cisternero' : 'cliente');
+
+                              if (!_isDriverTab && _addressController.text.isNotEmpty) {
+                                await appState.addNewAddress(
+                                  'Principal',
+                                  _addressController.text.trim(),
+                                  '10.48,-66.90',
+                                );
+                              }
+
+                              await appState.saveSession(_isDriverTab ? 'cisternero' : 'cliente');
+                              if (ctx.mounted) Navigator.pop(ctx);
+                              if (mounted) {
+                                Navigator.pushAndRemoveUntil(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        _isDriverTab ? const DriverHomeScreen() : const ClientHomeScreen(),
+                                  ),
+                                  (route) => false,
+                                );
+                              }
+                            } else {
+                              if (ctx.mounted) {
+                                ScaffoldMessenger.of(ctx).showSnackBar(
+                                  SnackBar(content: Text(ApiService.extractErrorMessage(body))),
+                                );
+                              }
+                            }
+                          },
+                    child: isSubmitting
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                          )
+                        : const Text('Verificar y Crear Cuenta'),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   @override
@@ -268,7 +355,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   hint: '04141234567',
                   icon: Icons.phone_outlined,
                   controller: _phoneController,
-                  validator: (val) => val == null || val.isEmpty ? 'Ingresa tu teléfono' : null,
+                  validator: (val) {
+                    if (val == null || val.isEmpty) return 'Ingresa tu teléfono';
+                    if (val.trim().length < 10) return 'El teléfono debe tener al menos 10 caracteres';
+                    return null;
+                  },
                 ),
                 const SizedBox(height: 16),
 
@@ -278,6 +369,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   icon: Icons.badge_outlined,
                   controller: _rifController,
                   validator: (val) => val == null || val.isEmpty ? 'Ingresa tu RIF' : null,
+                ),
+                const SizedBox(height: 16),
+
+                _buildInputField(
+                  label: 'Contraseña',
+                  hint: 'Mínimo 6 caracteres',
+                  icon: Icons.lock_outline,
+                  controller: _passwordController,
+                  obscureText: true,
+                  validator: (val) {
+                    if (val == null || val.isEmpty) return 'Ingresa una contraseña';
+                    if (val.length < 6) return 'Debe tener al menos 6 caracteres';
+                    return null;
+                  },
                 ),
                 const SizedBox(height: 16),
 
@@ -377,6 +482,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     required IconData icon,
     required TextEditingController controller,
     required String? Function(String?) validator,
+    bool obscureText = false,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -395,6 +501,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         TextFormField(
           controller: controller,
           validator: validator,
+          obscureText: obscureText,
           style: const TextStyle(color: AppTheme.textWhite, fontSize: 14),
           decoration: InputDecoration(
             hintText: hint,

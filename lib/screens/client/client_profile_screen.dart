@@ -212,12 +212,15 @@ class ClientProfileScreen extends StatelessWidget {
             
             // Logout Button
             ElevatedButton(
-              onPressed: () {
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(builder: (context) => const LoginScreen(initialIsDriver: false)),
-                  (route) => false,
-                );
+              onPressed: () async {
+                await context.read<AppState>().logout();
+                if (context.mounted) {
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(builder: (context) => const LoginScreen(initialIsDriver: false)),
+                    (route) => false,
+                  );
+                }
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppTheme.error.withOpacity(0.08),

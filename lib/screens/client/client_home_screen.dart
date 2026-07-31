@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../services/geocoding_service.dart';
 import '../../state/app_state.dart';
 import '../../theme.dart';
 import '../../widgets/mock_map.dart';
@@ -26,6 +28,45 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
     {'liters': 2000, 'basePrice': 40.0, 'shippingPrice': 5.0, 'label': '2000L', 'isPopular': true},
     {'liters': 5000, 'basePrice': 80.0, 'shippingPrice': 5.0, 'label': '5000L', 'isPopular': false},
   ];
+
+  // Address search / autocomplete (Nominatim)
+  final TextEditingController _searchController = TextEditingController();
+  List<PlaceSuggestion> _searchResults = [];
+  Timer? _searchDebounce;
+  bool _isSearching = false;
+
+  @override
+  void dispose() {
+    _searchDebounce?.cancel();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged(String query) {
+    _searchDebounce?.cancel();
+    if (query.trim().length < 3) {
+      setState(() => _searchResults = []);
+      return;
+    }
+    _searchDebounce = Timer(const Duration(milliseconds: 500), () async {
+      setState(() => _isSearching = true);
+      final results = await GeocodingService.searchPlaces(query);
+      if (!mounted) return;
+      setState(() {
+        _searchResults = results;
+        _isSearching = false;
+      });
+    });
+  }
+
+  void _selectPlace(PlaceSuggestion place) {
+    context.read<AppState>().setDeliveryLocation(place.displayName, place.location);
+    setState(() {
+      _searchResults = [];
+      _searchController.text = place.displayName;
+    });
+    FocusScope.of(context).unfocus();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -102,8 +143,8 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
     return Stack(
       children: [
         // Simulated map covers full background
-        const Positioned.fill(
-          child: MockMapWidget(showRoute: false),
+        Positioned.fill(
+          child: MockMapWidget(showRoute: false, clientLocation: appState.deliveryCoords),
         ),
 
         // Custom Top Overlay HUD (Address banner)
@@ -221,13 +262,33 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(color: AppTheme.borderDark),
                   ),
-                  child: const TextField(
-                    style: TextStyle(color: AppTheme.textWhite, fontSize: 14),
+                  child: TextField(
+                    controller: _searchController,
+                    onChanged: _onSearchChanged,
+                    style: const TextStyle(color: AppTheme.textWhite, fontSize: 14),
                     decoration: InputDecoration(
                       hintText: 'Buscar nueva dirección...',
-                      hintStyle: TextStyle(color: AppTheme.textMuted),
-                      prefixIcon: Icon(Icons.search, size: 20, color: AppTheme.textMuted),
-                      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      hintStyle: const TextStyle(color: AppTheme.textMuted),
+                      prefixIcon: const Icon(Icons.search, size: 20, color: AppTheme.textMuted),
+                      suffixIcon: _isSearching
+                          ? const Padding(
+                              padding: EdgeInsets.all(14),
+                              child: SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.primaryBlue),
+                              ),
+                            )
+                          : (_searchController.text.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.clear, size: 18, color: AppTheme.textMuted),
+                                  onPressed: () {
+                                    _searchController.clear();
+                                    setState(() => _searchResults = []);
+                                  },
+                                )
+                              : null),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                       filled: false,
                       border: InputBorder.none,
                       enabledBorder: InputBorder.none,
@@ -235,7 +296,39 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                     ),
                   ),
                 ),
-                
+
+                // Autocomplete results dropdown
+                if (_searchResults.isNotEmpty)
+                  Container(
+                    margin: const EdgeInsets.only(top: 6),
+                    decoration: BoxDecoration(
+                      color: AppTheme.cardDark,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: AppTheme.borderDark),
+                    ),
+                    constraints: const BoxConstraints(maxHeight: 240),
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      padding: EdgeInsets.zero,
+                      itemCount: _searchResults.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1, color: AppTheme.borderDark),
+                      itemBuilder: (context, index) {
+                        final place = _searchResults[index];
+                        return ListTile(
+                          dense: true,
+                          leading: const Icon(Icons.location_on_outlined, color: AppTheme.primaryBlue, size: 20),
+                          title: Text(
+                            place.displayName,
+                            style: const TextStyle(color: AppTheme.textWhite, fontSize: 13),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          onTap: () => _selectPlace(place),
+                        );
+                      },
+                    ),
+                  ),
+
                 const SizedBox(height: 12),
                 
                 // Row of Chips: Reordenar / Favoritos

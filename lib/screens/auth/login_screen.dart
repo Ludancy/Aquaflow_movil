@@ -41,7 +41,6 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _rememberMe = true;
   bool _obscurePin = true;
   bool _isLoading = false;
-  String? _devOtp;
 
   @override
   void initState() {
@@ -79,128 +78,265 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _handleRegister(AppState appState) async {
-    setState(() => _isLoading = true);
-
     final phone = _idController.text.trim();
     final name = _nameController.text.trim();
     final email = _emailController.text.trim();
+    final password = _pinController.text.trim();
     final taxId = _taxIdController.text.trim();
+    final license = _licenseController.text.trim();
+    final brand = _truckBrandController.text.trim();
+    final model = _truckModelController.text.trim();
+    final plate = _truckPlateController.text.trim();
+    final capacity = double.tryParse(_truckCapacityController.text.trim()) ?? 10000.0;
 
-    if (!_isDriver) {
-      // Register Client
-      if (appState.isBackendConnected) {
-        final res = await ApiService.registerClient(
-          nombre: name,
-          telefono: phone,
-          email: email.isNotEmpty ? email : 'cliente_$phone@aquaflow.com',
-          identificacionFiscal: taxId.isNotEmpty ? taxId : 'J-$phone-0',
-        );
-        setState(() => _isLoading = false);
-
-        if (res != null && res['data'] != null) {
-          // registerClient devuelve el usuario directo en data (sin envolver en 'usuario')
-          appState.setAuthToken(res['token']);
-          appState.setCurrentUser(res['data'], 'cliente');
-        } else {
-          appState.userName = name;
-          appState.userPhone = phone;
-          appState.userEmail = email;
-        }
-      } else {
-        setState(() => _isLoading = false);
+    if (!appState.isBackendConnected) {
+      // Offline direct simulation (sin backend no hay forma de enviar/verificar OTP)
+      if (!_isDriver) {
         appState.userName = name;
         appState.userPhone = phone;
         appState.userEmail = email;
-      }
-
-      if (context.mounted) {
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (context) => const ClientHomeScreen()),
-          (route) => false,
-        );
-      }
-    } else {
-      // Driver Onboarding
-      final license = _licenseController.text.trim();
-      final brand = _truckBrandController.text.trim();
-      final model = _truckModelController.text.trim();
-      final plate = _truckPlateController.text.trim();
-      final capacity = double.tryParse(_truckCapacityController.text.trim()) ?? 10000.0;
-
-      if (appState.isBackendConnected) {
-        final res = await ApiService.driverOnboarding(
-          nombre: name,
-          telefono: phone,
-          email: email.isNotEmpty ? email : 'cisternero_$phone@aquaflow.com',
-          licenciaConducir: license.isNotEmpty ? license : 'L-$phone',
-          rifPersonal: taxId.isNotEmpty ? taxId : 'V-$phone',
-          vehiculo: {
-            'marca': brand.isNotEmpty ? brand : 'Ford',
-            'modelo': model.isNotEmpty ? model : 'F-350',
-            'placa': plate.isNotEmpty ? plate : 'A12B34',
-            'capacidad_tanque': capacity,
-          },
-        );
-        setState(() => _isLoading = false);
-
-        if (res != null && res['data'] != null) {
-          // driverOnboarding devuelve el usuario directo en data (sin envolver en 'usuario')
-          appState.setAuthToken(res['token']);
-          appState.setCurrentUser(res['data'], 'cisternero');
-          appState.driverTruck = '$brand $model';
-          appState.driverPlate = plate;
-        } else {
-          appState.driverName = name;
-          appState.driverPhone = phone;
-          appState.driverEmail = email;
-          appState.driverTruck = '$brand $model';
-          appState.driverPlate = plate;
+        if (context.mounted) {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => const ClientHomeScreen()),
+            (route) => false,
+          );
         }
       } else {
-        setState(() => _isLoading = false);
         appState.driverName = name;
         appState.driverPhone = phone;
         appState.driverEmail = email;
         appState.driverTruck = '$brand $model';
         appState.driverPlate = plate;
+        if (context.mounted) {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => const DriverHomeScreen()),
+            (route) => false,
+          );
+        }
       }
+      return;
+    }
 
+    setState(() => _isLoading = true);
+    final otpRes = await ApiService.sendRegistrationOtp(email);
+    setState(() => _isLoading = false);
+
+    final otpBody = otpRes?['data'];
+    if (otpRes == null || otpRes['statusCode'] != 200) {
       if (context.mounted) {
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (context) => const DriverHomeScreen()),
-          (route) => false,
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(ApiService.extractErrorMessage(otpBody)),
+            backgroundColor: AppTheme.error,
+          ),
         );
       }
+      return;
     }
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Código enviado a $email')),
+      );
+      _showRegistrationOtpModal(
+        appState: appState,
+        phone: phone,
+        name: name,
+        email: email,
+        password: password,
+        taxId: taxId,
+        license: license,
+        brand: brand,
+        model: model,
+        plate: plate,
+        capacity: capacity,
+      );
+    }
+  }
+
+  void _showRegistrationOtpModal({
+    required AppState appState,
+    required String phone,
+    required String name,
+    required String email,
+    required String password,
+    required String taxId,
+    required String license,
+    required String brand,
+    required String model,
+    required String plate,
+    required double capacity,
+  }) {
+    _otpController.clear();
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppTheme.surfaceDark,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        bool isSubmitting = false;
+        return StatefulBuilder(
+          builder: (ctx, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+                top: 24,
+                left: 24,
+                right: 24,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text(
+                    'Verifica tu correo',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.textWhite,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Ingresa el código de 6 dígitos enviado a $email.',
+                    style: const TextStyle(color: AppTheme.textMuted, fontSize: 13),
+                  ),
+                  const SizedBox(height: 20),
+                  TextField(
+                    controller: _otpController,
+                    keyboardType: TextInputType.number,
+                    style: const TextStyle(color: AppTheme.textWhite, fontSize: 20, letterSpacing: 4),
+                    textAlign: TextAlign.center,
+                    decoration: const InputDecoration(
+                      labelText: 'Código OTP (6 dígitos)',
+                      hintText: '123456',
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  ElevatedButton(
+                    onPressed: isSubmitting
+                        ? null
+                        : () async {
+                            final code = _otpController.text.trim();
+                            if (code.isEmpty) return;
+                            setModalState(() => isSubmitting = true);
+
+                            final res = !_isDriver
+                                ? await ApiService.registerClient(
+                                    nombre: name,
+                                    telefono: phone,
+                                    email: email,
+                                    otp: code,
+                                    password: password,
+                                    identificacionFiscal: taxId.isNotEmpty ? taxId : null,
+                                  )
+                                : await ApiService.driverOnboarding(
+                                    nombre: name,
+                                    telefono: phone,
+                                    email: email,
+                                    otp: code,
+                                    password: password,
+                                    licenciaConducir: license.isNotEmpty ? license : 'L-$phone',
+                                    rifPersonal: taxId.isNotEmpty ? taxId : 'V-$phone',
+                                    vehiculo: {
+                                      'marca': brand.isNotEmpty ? brand : 'Ford',
+                                      'modelo': model.isNotEmpty ? model : 'F-350',
+                                      'placa': plate.isNotEmpty ? plate : 'A12B34',
+                                      'capacidad_tanque': capacity,
+                                    },
+                                  );
+
+                            setModalState(() => isSubmitting = false);
+
+                            final body = res?['data'];
+                            final statusCode = res?['statusCode'];
+                            if (res != null && (statusCode == 200 || statusCode == 201)) {
+                              appState.setAuthToken(body['token']);
+                              appState.setCurrentUser(body['data'], _isDriver ? 'cisternero' : 'cliente');
+                              if (_isDriver) {
+                                appState.driverTruck = '$brand $model';
+                                appState.driverPlate = plate;
+                              }
+                              await appState.saveSession(_isDriver ? 'cisternero' : 'cliente');
+                              if (ctx.mounted) Navigator.pop(ctx);
+                              if (context.mounted) {
+                                Navigator.pushAndRemoveUntil(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        _isDriver ? const DriverHomeScreen() : const ClientHomeScreen(),
+                                  ),
+                                  (route) => false,
+                                );
+                              }
+                            } else {
+                              if (ctx.mounted) {
+                                ScaffoldMessenger.of(ctx).showSnackBar(
+                                  SnackBar(
+                                    content: Text(ApiService.extractErrorMessage(body)),
+                                    backgroundColor: AppTheme.error,
+                                  ),
+                                );
+                              }
+                            }
+                          },
+                    child: isSubmitting
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                          )
+                        : const Text('Verificar y Crear Cuenta'),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   void _handleLogin(AppState appState) async {
     final inputId = _idController.text.trim();
+    final password = _pinController.text.trim();
 
     if (appState.isBackendConnected) {
       setState(() => _isLoading = true);
-      final res = await ApiService.login(inputId);
+      final res = await ApiService.login(inputId, password);
       setState(() => _isLoading = false);
 
       if (res != null) {
         final statusCode = res['statusCode'];
-        final data = res['data'];
+        final body = res['data'];
 
         if (statusCode == 200) {
-          setState(() {
-            _devOtp = data['otp_dev'];
-          });
+          final authData = body['data'];
+          appState.setAuthToken(authData['token']);
+          appState.setCurrentUser(authData['usuario'], authData['rol']);
+          if (_rememberMe) {
+            await appState.saveSession(authData['rol']);
+          }
+
           if (context.mounted) {
-            _showOtpModal(context, inputId, !_isDriver);
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(
+                builder: (context) =>
+                    authData['rol'] == 'cisternero' ? const DriverHomeScreen() : const ClientHomeScreen(),
+              ),
+              (route) => false,
+            );
           }
         } else {
-          final errorMsg = data?['error'] ?? 'El usuario no está registrado. Debe registrarse primero.';
           if (context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text(errorMsg),
+                content: Text(ApiService.extractErrorMessage(body)),
                 backgroundColor: AppTheme.error,
               ),
             );
@@ -246,114 +382,6 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  void _showOtpModal(BuildContext context, String phone, bool isClient) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: AppTheme.surfaceDark,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) {
-        return Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
-            top: 24,
-            left: 24,
-            right: 24,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text(
-                'Verificación de Código OTP',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: AppTheme.textWhite,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Ingresa el código enviado a $phone.',
-                style: const TextStyle(color: AppTheme.textMuted, fontSize: 13),
-              ),
-              if (_devOtp != null) ...[
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: AppTheme.primaryBlue.withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(
-                    '🔑 Código OTP Dev: $_devOtp',
-                    style: const TextStyle(
-                      color: AppTheme.primaryBlue,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              ],
-              const SizedBox(height: 20),
-              TextField(
-                controller: _otpController,
-                keyboardType: TextInputType.number,
-                style: const TextStyle(color: AppTheme.textWhite, fontSize: 20, letterSpacing: 4),
-                textAlign: TextAlign.center,
-                decoration: const InputDecoration(
-                  labelText: 'Código OTP (6 dígitos)',
-                  hintText: '123456',
-                ),
-              ),
-              const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: () async {
-                  final otpCode = _otpController.text.trim();
-                  if (otpCode.isEmpty) return;
-
-                  final res = await ApiService.verifyOtp(phone, otpCode);
-                  if (res != null && res['data'] != null) {
-                    final data = res['data'];
-                    final usuario = data['usuario'];
-                    final rol = data['rol'];
-                    final appState = context.read<AppState>();
-                    appState.setAuthToken(data['token']);
-                    appState.setCurrentUser(usuario, rol);
-
-                    if (ctx.mounted) Navigator.pop(ctx);
-
-                    if (rol == 'cisternero' || _isDriver) {
-                      Navigator.pushAndRemoveUntil(
-                        context,
-                        MaterialPageRoute(builder: (context) => const DriverHomeScreen()),
-                        (route) => false,
-                      );
-                    } else {
-                      Navigator.pushAndRemoveUntil(
-                        context,
-                        MaterialPageRoute(builder: (context) => const ClientHomeScreen()),
-                        (route) => false,
-                      );
-                    }
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Código OTP inválido o expirado')),
-                    );
-                  }
-                },
-                child: const Text('Verificar e Iniciar Turno'),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
   Widget _buildTextField({
     required TextEditingController controller,
     required String label,
@@ -361,6 +389,8 @@ class _LoginScreenState extends State<LoginScreen> {
     required IconData icon,
     TextInputType keyboardType = TextInputType.text,
     bool isRequired = true,
+    int? minLength,
+    String? minLengthMessage,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -401,6 +431,9 @@ class _LoginScreenState extends State<LoginScreen> {
           validator: isRequired
               ? (val) {
                   if (val == null || val.isEmpty) return 'Campo requerido';
+                  if (minLength != null && val.trim().length < minLength) {
+                    return minLengthMessage ?? 'Debe tener al menos $minLength caracteres';
+                  }
                   return null;
                 }
               : null,
@@ -635,7 +668,6 @@ class _LoginScreenState extends State<LoginScreen> {
                                     hint: 'e.g. juan@ejemplo.com',
                                     icon: Icons.email_outlined,
                                     keyboardType: TextInputType.emailAddress,
-                                    isRequired: false,
                                   ),
                                   _buildTextField(
                                     controller: _taxIdController,
@@ -711,29 +743,33 @@ class _LoginScreenState extends State<LoginScreen> {
                                 // PHONE / ID FIELD
                                 _buildTextField(
                                   controller: _idController,
-                                  label: _isDriver ? 'Teléfono de Contacto' : 'Número de Teléfono',
-                                  hint: '04121234567',
-                                  icon: Icons.phone_outlined,
-                                  keyboardType: TextInputType.phone,
+                                  label: _isRegisterMode
+                                      ? (_isDriver ? 'Teléfono de Contacto' : 'Número de Teléfono')
+                                      : 'Teléfono o Correo',
+                                  hint: _isRegisterMode ? '04121234567' : '04121234567 o correo@ejemplo.com',
+                                  icon: _isRegisterMode ? Icons.phone_outlined : Icons.person_outline,
+                                  keyboardType: _isRegisterMode ? TextInputType.phone : TextInputType.text,
+                                  minLength: _isRegisterMode ? 10 : null,
+                                  minLengthMessage: 'El teléfono debe tener al menos 10 caracteres',
                                 ),
 
-                                // PIN / LOGIN PASSWORD FIELDS
-                                if (!_isRegisterMode) ...[
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      const Text(
-                                        'PIN de Seguridad / Contraseña',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600,
-                                          color: AppTheme.textMuted,
-                                        ),
+                                // PIN / PASSWORD FIELD (visible en login y registro)
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    const Text(
+                                      'Contraseña',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: AppTheme.textMuted,
                                       ),
+                                    ),
+                                    if (!_isRegisterMode)
                                       GestureDetector(
                                         onTap: () {
                                           ScaffoldMessenger.of(context).showSnackBar(
-                                            const SnackBar(content: Text('Contacte al administrador para restablecer su PIN.')),
+                                            const SnackBar(content: Text('Contacte al administrador para restablecer su contraseña.')),
                                           );
                                         },
                                         child: const Text(
@@ -745,47 +781,56 @@ class _LoginScreenState extends State<LoginScreen> {
                                           ),
                                         ),
                                       ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 8),
-                                  TextFormField(
-                                    controller: _pinController,
-                                    obscureText: _obscurePin,
-                                    style: const TextStyle(color: Colors.white, fontSize: 14),
-                                    decoration: InputDecoration(
-                                      hintText: '••••••••',
-                                      hintStyle: TextStyle(color: Colors.grey.shade600, fontSize: 16),
-                                      prefixIcon: const Icon(Icons.lock_outline, color: AppTheme.textMuted, size: 20),
-                                      suffixIcon: IconButton(
-                                        icon: Icon(
-                                          _obscurePin ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                                          color: AppTheme.textMuted,
-                                          size: 20,
-                                        ),
-                                        onPressed: () {
-                                          setState(() => _obscurePin = !_obscurePin);
-                                        },
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                TextFormField(
+                                  controller: _pinController,
+                                  obscureText: _obscurePin,
+                                  style: const TextStyle(color: Colors.white, fontSize: 14),
+                                  validator: (val) {
+                                    if (val == null || val.isEmpty) return 'Ingresa tu contraseña';
+                                    if (_isRegisterMode && val.length < 6) {
+                                      return 'Debe tener al menos 6 caracteres';
+                                    }
+                                    return null;
+                                  },
+                                  decoration: InputDecoration(
+                                    hintText: '••••••••',
+                                    hintStyle: TextStyle(color: Colors.grey.shade600, fontSize: 16),
+                                    prefixIcon: const Icon(Icons.lock_outline, color: AppTheme.textMuted, size: 20),
+                                    suffixIcon: IconButton(
+                                      icon: Icon(
+                                        _obscurePin ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                                        color: AppTheme.textMuted,
+                                        size: 20,
                                       ),
-                                      filled: true,
-                                      fillColor: const Color(0xFF131F30),
-                                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                                      border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                        borderSide: const BorderSide(color: Color(0xFF22354E)),
-                                      ),
-                                      enabledBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                        borderSide: const BorderSide(color: Color(0xFF22354E)),
-                                      ),
-                                      focusedBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                        borderSide: const BorderSide(color: Color(0xFF3498DB)),
-                                      ),
+                                      onPressed: () {
+                                        setState(() => _obscurePin = !_obscurePin);
+                                      },
+                                    ),
+                                    filled: true,
+                                    fillColor: const Color(0xFF131F30),
+                                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: const BorderSide(color: Color(0xFF22354E)),
+                                    ),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: const BorderSide(color: Color(0xFF22354E)),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: const BorderSide(color: Color(0xFF3498DB)),
                                     ),
                                   ),
-                                  const SizedBox(height: 16),
+                                ),
+                                const SizedBox(height: 16),
 
-                                  // Checkbox: Mantener sesión iniciada
+                                // Checkbox: Mantener sesión iniciada (solo aplica al login;
+                                // el registro persiste la sesión automáticamente)
+                                if (!_isRegisterMode)
                                   Row(
                                     children: [
                                       SizedBox(
@@ -811,7 +856,6 @@ class _LoginScreenState extends State<LoginScreen> {
                                       ),
                                     ],
                                   ),
-                                ],
 
                                 const SizedBox(height: 24),
 

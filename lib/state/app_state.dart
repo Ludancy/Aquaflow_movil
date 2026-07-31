@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/order.dart';
 import '../services/api_service.dart';
 import '../services/location_service.dart';
@@ -23,6 +25,13 @@ class AppState extends ChangeNotifier {
   String? currentDriverId;
   String? authToken;
 
+  // Sesión persistida (SharedPreferences) para "Mantener sesión iniciada"
+  static const _prefTokenKey = 'aquaflow_auth_token';
+  static const _prefUserIdKey = 'aquaflow_user_id';
+  static const _prefRolKey = 'aquaflow_rol';
+
+  bool isSessionRestoring = true;
+
   void setAuthToken(String? token) {
     authToken = token;
     ApiService.authToken = token;
@@ -32,11 +41,66 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  Future<void> saveSession(String rol) async {
+    if (authToken == null || currentUserId == null) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_prefTokenKey, authToken!);
+    await prefs.setString(_prefUserIdKey, currentUserId!);
+    await prefs.setString(_prefRolKey, rol);
+  }
+
+  Future<void> _restoreSession() async {
+    if (!isBackendConnected) return;
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString(_prefTokenKey);
+    final userId = prefs.getString(_prefUserIdKey);
+    final rol = prefs.getString(_prefRolKey);
+    if (token == null || userId == null || rol == null) return;
+
+    setAuthToken(token);
+    final profile = await ApiService.getProfile(userId);
+    if (profile != null) {
+      setCurrentUser(profile, rol);
+    } else {
+      // Token vencido o usuario eliminado: descartar sesión persistida
+      await prefs.remove(_prefTokenKey);
+      await prefs.remove(_prefUserIdKey);
+      await prefs.remove(_prefRolKey);
+      setAuthToken(null);
+    }
+  }
+
+  Future<void> logout() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_prefTokenKey);
+    await prefs.remove(_prefUserIdKey);
+    await prefs.remove(_prefRolKey);
+
+    SocketService.disconnect();
+    authToken = null;
+    ApiService.authToken = null;
+    currentUserId = null;
+    currentClientId = null;
+    currentDriverId = null;
+    userName = '';
+    userEmail = '';
+    userPhone = '';
+    deliveryAddress = '';
+    userAddresses = [];
+    driverName = '';
+    driverPhone = '';
+    driverEmail = '';
+    driverTruck = '';
+    driverPlate = '';
+    notifyListeners();
+  }
+
   // Active User Info (Empty by default, populated strictly from DB/Registration)
   String userName = '';
   String userEmail = '';
   String userPhone = '';
   String deliveryAddress = '';
+  LatLng? deliveryCoords; // coordenadas reales del punto elegido en el buscador/mapa
   List<Map<String, dynamic>> userAddresses = [];
 
   // Driver details (Empty by default)
@@ -48,7 +112,14 @@ class AppState extends ChangeNotifier {
   String driverTruck = '';
 
   AppState() {
-    initBackendConnection();
+    _init();
+  }
+
+  Future<void> _init() async {
+    await initBackendConnection();
+    await _restoreSession();
+    isSessionRestoring = false;
+    notifyListeners();
   }
 
   Future<void> initBackendConnection() async {
@@ -225,6 +296,13 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  // Establecido al elegir un resultado del buscador de lugares (autocompletado)
+  void setDeliveryLocation(String address, LatLng coords) {
+    deliveryAddress = address;
+    deliveryCoords = coords;
+    notifyListeners();
+  }
+
   void setPaymentMethod(String method) {
     paymentMethod = method;
     notifyListeners();
@@ -359,7 +437,9 @@ class AppState extends ChangeNotifier {
         final res = await ApiService.requestOrder(
           clientId: clientId,
           tarifaId: tarifaId,
-          destinationCoords: deliveryAddress.isNotEmpty ? deliveryAddress : '10.48,-66.90',
+          destinationCoords: deliveryCoords != null
+              ? '${deliveryCoords!.latitude},${deliveryCoords!.longitude}'
+              : (deliveryAddress.isNotEmpty ? deliveryAddress : '10.48,-66.90'),
         );
 
         if (res != null && res['data'] != null && res['data']['id_pedido'] != null) {
