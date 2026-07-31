@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'state/app_state.dart';
 import 'theme.dart';
-import 'screens/welcome_screen.dart';
+import 'screens/auth/login_screen.dart';
 import 'screens/client/client_home_screen.dart';
 import 'screens/driver/driver_home_screen.dart';
 
@@ -24,10 +24,10 @@ class AquaFlowApp extends StatelessWidget {
     return MaterialApp(
       title: 'AquaFlow',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.clientTheme, // Default theme is client, dynamically switches if needed
-      home: const WelcomeScreen(),
+      theme: AppTheme.clientTheme,
+      home: const LoginScreen(),
       routes: {
-        '/welcome': (context) => const WelcomeScreen(),
+        '/login': (context) => const LoginScreen(),
         '/client_home': (context) => const ClientHomeScreen(),
         '/driver_home': (context) => const DriverHomeScreen(),
       },

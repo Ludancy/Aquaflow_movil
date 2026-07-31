@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../state/app_state.dart';
 import '../../theme.dart';
-import '../welcome_screen.dart';
+import '../auth/login_screen.dart';
 
 class DriverProfileScreen extends StatelessWidget {
   const DriverProfileScreen({Key? key}) : super(key: key);
@@ -132,7 +132,7 @@ class DriverProfileScreen extends StatelessWidget {
               onPressed: () {
                 Navigator.pushAndRemoveUntil(
                   context,
-                  MaterialPageRoute(builder: (context) => const WelcomeScreen()),
+                  MaterialPageRoute(builder: (context) => const LoginScreen(initialIsDriver: true)),
                   (route) => false,
                 );
               },
