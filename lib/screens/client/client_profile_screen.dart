@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../services/geocoding_service.dart';
 import '../../state/app_state.dart';
 import '../../theme.dart';
 import '../auth/login_screen.dart';
@@ -11,76 +13,151 @@ class ClientProfileScreen extends StatelessWidget {
     final labelCtrl = TextEditingController();
     final addrCtrl = TextEditingController();
 
+    List<PlaceSuggestion> suggestions = [];
+    Timer? debounce;
+    bool isSearching = false;
+    PlaceSuggestion? selectedPlace;
+
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppTheme.surfaceDark,
-        title: const Text('Direcciones Guardadas', style: TextStyle(color: AppTheme.textWhite)),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Flexible(
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: appState.userAddresses.length,
-                  itemBuilder: (context, index) {
-                    final addr = appState.userAddresses[index];
-                    return ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.location_on, color: AppTheme.primaryBlue),
-                      title: Text(addr['etiqueta'] ?? 'Dirección', style: const TextStyle(color: AppTheme.textWhite, fontWeight: FontWeight.bold, fontSize: 13)),
-                      subtitle: Text(addr['direccion_exacta'] ?? '', style: const TextStyle(color: AppTheme.textMuted, fontSize: 11)),
-                      trailing: appState.deliveryAddress == addr['direccion_exacta']
-                          ? const Icon(Icons.check_circle, color: Colors.green, size: 18)
-                          : TextButton(
-                              onPressed: () {
-                                appState.setAddress(addr['direccion_exacta']);
-                                Navigator.pop(ctx);
-                              },
-                              child: const Text('Usar', style: TextStyle(fontSize: 11)),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          return AlertDialog(
+            backgroundColor: AppTheme.surfaceDark,
+            title: const Text('Direcciones Guardadas', style: TextStyle(color: AppTheme.textWhite)),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: appState.userAddresses.length,
+                      itemBuilder: (context, index) {
+                        final addr = appState.userAddresses[index];
+                        return ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: const Icon(Icons.location_on, color: AppTheme.primaryBlue),
+                          title: Text(addr['etiqueta'] ?? 'Dirección', style: const TextStyle(color: AppTheme.textWhite, fontWeight: FontWeight.bold, fontSize: 13)),
+                          subtitle: Text(addr['direccion_exacta'] ?? '', style: const TextStyle(color: AppTheme.textMuted, fontSize: 11)),
+                          trailing: appState.deliveryAddress == addr['direccion_exacta']
+                              ? const Icon(Icons.check_circle, color: Colors.green, size: 18)
+                              : TextButton(
+                                  onPressed: () {
+                                    appState.setAddress(addr['direccion_exacta']);
+                                    Navigator.pop(ctx);
+                                  },
+                                  child: const Text('Usar', style: TextStyle(fontSize: 11)),
+                                ),
+                        );
+                      },
+                    ),
+                  ),
+                  const Divider(color: AppTheme.borderDark),
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text('Agregar Nueva Dirección', style: TextStyle(color: AppTheme.textWhite, fontWeight: FontWeight.bold, fontSize: 13)),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: labelCtrl,
+                    style: const TextStyle(color: AppTheme.textWhite, fontSize: 12),
+                    decoration: const InputDecoration(hintText: 'Etiqueta (ej. Oficina, Casa)', hintStyle: TextStyle(color: AppTheme.textMuted)),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: addrCtrl,
+                    style: const TextStyle(color: AppTheme.textWhite, fontSize: 12),
+                    decoration: InputDecoration(
+                      hintText: 'Dirección exacta',
+                      hintStyle: const TextStyle(color: AppTheme.textMuted),
+                      suffixIcon: isSearching
+                          ? const Padding(
+                              padding: EdgeInsets.all(12),
+                              child: SizedBox(
+                                width: 14,
+                                height: 14,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.primaryBlue),
+                              ),
+                            )
+                          : null,
+                    ),
+                    onChanged: (query) {
+                      selectedPlace = null;
+                      debounce?.cancel();
+                      if (query.trim().length < 3) {
+                        setDialogState(() => suggestions = []);
+                        return;
+                      }
+                      debounce = Timer(const Duration(milliseconds: 500), () async {
+                        setDialogState(() => isSearching = true);
+                        final results = await GeocodingService.searchPlaces(query);
+                        setDialogState(() {
+                          suggestions = results;
+                          isSearching = false;
+                        });
+                      });
+                    },
+                  ),
+                  if (suggestions.isNotEmpty)
+                    Container(
+                      margin: const EdgeInsets.only(top: 6),
+                      constraints: const BoxConstraints(maxHeight: 160),
+                      decoration: BoxDecoration(
+                        color: AppTheme.backgroundDark,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: AppTheme.borderDark),
+                      ),
+                      child: ListView.separated(
+                        shrinkWrap: true,
+                        padding: EdgeInsets.zero,
+                        itemCount: suggestions.length,
+                        separatorBuilder: (_, __) => const Divider(height: 1, color: AppTheme.borderDark),
+                        itemBuilder: (context, index) {
+                          final place = suggestions[index];
+                          return ListTile(
+                            dense: true,
+                            leading: const Icon(Icons.location_on_outlined, color: AppTheme.primaryBlue, size: 18),
+                            title: Text(
+                              place.displayName,
+                              style: const TextStyle(color: AppTheme.textWhite, fontSize: 12),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                             ),
+                            onTap: () {
+                              addrCtrl.text = place.displayName;
+                              selectedPlace = place;
+                              setDialogState(() => suggestions = []);
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cerrar')),
+              ElevatedButton(
+                onPressed: () async {
+                  if (labelCtrl.text.isNotEmpty && addrCtrl.text.isNotEmpty) {
+                    final coords = selectedPlace != null
+                        ? '${selectedPlace!.location.latitude},${selectedPlace!.location.longitude}'
+                        : '10.48,-66.90';
+                    await appState.addNewAddress(
+                      labelCtrl.text.trim(),
+                      addrCtrl.text.trim(),
+                      coords,
                     );
-                  },
-                ),
-              ),
-              const Divider(color: AppTheme.borderDark),
-              const Align(
-                alignment: Alignment.centerLeft,
-                child: Text('Agregar Nueva Dirección', style: TextStyle(color: AppTheme.textWhite, fontWeight: FontWeight.bold, fontSize: 13)),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: labelCtrl,
-                style: const TextStyle(color: AppTheme.textWhite, fontSize: 12),
-                decoration: const InputDecoration(hintText: 'Etiqueta (ej. Oficina, Casa)', hintStyle: TextStyle(color: AppTheme.textMuted)),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: addrCtrl,
-                style: const TextStyle(color: AppTheme.textWhite, fontSize: 12),
-                decoration: const InputDecoration(hintText: 'Dirección exacta', hintStyle: TextStyle(color: AppTheme.textMuted)),
+                    if (ctx.mounted) Navigator.pop(ctx);
+                  }
+                },
+                child: const Text('Guardar'),
               ),
             ],
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cerrar')),
-          ElevatedButton(
-            onPressed: () async {
-              if (labelCtrl.text.isNotEmpty && addrCtrl.text.isNotEmpty) {
-                await appState.addNewAddress(
-                  labelCtrl.text.trim(),
-                  addrCtrl.text.trim(),
-                  '10.48,-66.90',
-                );
-                if (ctx.mounted) Navigator.pop(ctx);
-              }
-            },
-            child: const Text('Guardar'),
-          ),
-        ],
+          );
+        },
       ),
     );
   }

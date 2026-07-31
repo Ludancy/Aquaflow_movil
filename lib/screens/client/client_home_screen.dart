@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import '../../services/geocoding_service.dart';
 import '../../state/app_state.dart';
@@ -66,6 +67,115 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
       _searchController.text = place.displayName;
     });
     FocusScope.of(context).unfocus();
+  }
+
+  bool _isCurrentAddressFavorite(AppState appState) {
+    return appState.userAddresses.any((a) => a['direccion_exacta'] == _searchController.text);
+  }
+
+  void _showSaveFavoriteDialog(BuildContext context, AppState appState) {
+    final address = _searchController.text;
+    final coords = appState.deliveryCoords;
+    if (coords == null) return;
+
+    final labelCtrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.surfaceDark,
+        title: const Text('Guardar como favorita', style: TextStyle(color: AppTheme.textWhite)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(address, style: const TextStyle(color: AppTheme.textMuted, fontSize: 12), maxLines: 2, overflow: TextOverflow.ellipsis),
+            const SizedBox(height: 12),
+            TextField(
+              controller: labelCtrl,
+              autofocus: true,
+              style: const TextStyle(color: AppTheme.textWhite, fontSize: 13),
+              decoration: const InputDecoration(hintText: 'Etiqueta (ej. Casa, Oficina)', hintStyle: TextStyle(color: AppTheme.textMuted)),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+          ElevatedButton(
+            onPressed: () async {
+              if (labelCtrl.text.trim().isEmpty) return;
+              await appState.addNewAddress(
+                labelCtrl.text.trim(),
+                address,
+                '${coords.latitude},${coords.longitude}',
+              );
+              if (ctx.mounted) Navigator.pop(ctx);
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Dirección guardada en favoritos')),
+                );
+              }
+            },
+            child: const Text('Guardar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showFavoritesSheet(BuildContext context, AppState appState) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppTheme.surfaceDark,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) {
+        if (appState.userAddresses.isEmpty) {
+          return const Padding(
+            padding: EdgeInsets.all(32),
+            child: Text(
+              'Aún no tienes direcciones favoritas guardadas.\nBusca una dirección y toca la estrella para guardarla.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AppTheme.textMuted),
+            ),
+          );
+        }
+        return SafeArea(
+          child: ListView.separated(
+            shrinkWrap: true,
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            itemCount: appState.userAddresses.length,
+            separatorBuilder: (_, __) => const Divider(height: 1, color: AppTheme.borderDark),
+            itemBuilder: (context, index) {
+              final addr = appState.userAddresses[index];
+              return ListTile(
+                leading: const Icon(Icons.star, color: Colors.amber),
+                title: Text(addr['etiqueta'] ?? 'Dirección', style: const TextStyle(color: AppTheme.textWhite, fontWeight: FontWeight.bold, fontSize: 13)),
+                subtitle: Text(addr['direccion_exacta'] ?? '', style: const TextStyle(color: AppTheme.textMuted, fontSize: 11), maxLines: 2, overflow: TextOverflow.ellipsis),
+                onTap: () {
+                  final coordStr = (addr['coordenadas'] ?? '') as String;
+                  final parts = coordStr.split(',');
+                  if (parts.length == 2) {
+                    final lat = double.tryParse(parts[0]);
+                    final lng = double.tryParse(parts[1]);
+                    if (lat != null && lng != null) {
+                      appState.setDeliveryLocation(addr['direccion_exacta'], LatLng(lat, lng));
+                    } else {
+                      appState.setAddress(addr['direccion_exacta']);
+                    }
+                  } else {
+                    appState.setAddress(addr['direccion_exacta']);
+                  }
+                  setState(() {
+                    _searchController.text = addr['direccion_exacta'] ?? '';
+                    _searchResults = [];
+                  });
+                  Navigator.pop(ctx);
+                },
+              );
+            },
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -280,12 +390,31 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                               ),
                             )
                           : (_searchController.text.isNotEmpty
-                              ? IconButton(
-                                  icon: const Icon(Icons.clear, size: 18, color: AppTheme.textMuted),
-                                  onPressed: () {
-                                    _searchController.clear();
-                                    setState(() => _searchResults = []);
-                                  },
+                              ? Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    if (appState.deliveryCoords != null && _searchResults.isEmpty)
+                                      IconButton(
+                                        icon: Icon(
+                                          _isCurrentAddressFavorite(appState) ? Icons.star : Icons.star_border,
+                                          size: 20,
+                                          color: _isCurrentAddressFavorite(appState)
+                                              ? Colors.amber
+                                              : AppTheme.textMuted,
+                                        ),
+                                        tooltip: 'Guardar como favorita',
+                                        onPressed: _isCurrentAddressFavorite(appState)
+                                            ? null
+                                            : () => _showSaveFavoriteDialog(context, appState),
+                                      ),
+                                    IconButton(
+                                      icon: const Icon(Icons.clear, size: 18, color: AppTheme.textMuted),
+                                      onPressed: () {
+                                        _searchController.clear();
+                                        setState(() => _searchResults = []);
+                                      },
+                                    ),
+                                  ],
                                 )
                               : null),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -343,7 +472,7 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                     _buildTopChip(
                       icon: Icons.star_border,
                       label: 'Favoritos',
-                      onTap: () {},
+                      onTap: () => _showFavoritesSheet(context, appState),
                     ),
                   ],
                 ),
