@@ -154,7 +154,7 @@ class ClientHistoryScreen extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                order.id,
+                '${order.liters.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')} Litros',
                 style: const TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 15,

@@ -571,7 +571,7 @@ class AppState extends ChangeNotifier {
       
       walletBalanceUsd += activeOrder!.price;
       recentTransactions.insert(0, {
-        'title': 'Pedido #${completedId.substring(0, completedId.length > 8 ? 8 : completedId.length)}',
+        'title': 'Entrega de ${activeOrder!.liters} Litros',
         'time': 'Hoy, ${DateTime.now().hour}:${DateTime.now().minute.toString().padLeft(2, '0')}',
         'amount': activeOrder!.price,
         'type': 'order',

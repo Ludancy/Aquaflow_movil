@@ -219,22 +219,22 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
               BottomNavigationBarItem(
                 icon: Icon(Icons.home_outlined),
                 activeIcon: Icon(Icons.home),
-                label: 'Home',
+                label: 'Inicio',
               ),
               BottomNavigationBarItem(
                 icon: Icon(Icons.assignment_outlined),
                 activeIcon: Icon(Icons.assignment),
-                label: 'Orders',
+                label: 'Pedidos',
               ),
               BottomNavigationBarItem(
                 icon: Icon(Icons.account_balance_wallet_outlined),
                 activeIcon: Icon(Icons.account_balance_wallet),
-                label: 'Wallet',
+                label: 'Billetera',
               ),
               BottomNavigationBarItem(
                 icon: Icon(Icons.person_outline),
                 activeIcon: Icon(Icons.person),
-                label: 'Profile',
+                label: 'Perfil',
               ),
             ],
           ),
