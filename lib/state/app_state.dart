@@ -422,7 +422,13 @@ class AppState extends ChangeNotifier {
 
   // Establecido al elegir un resultado del buscador de lugares (autocompletado)
   void setDeliveryLocation(String address, LatLng coords) {
-    deliveryAddress = address;
+    if (address.contains('(') || address.startsWith('Ubicación GPS')) {
+      final fallback = GeocodingService.getCachedAddress(coords) ??
+          GeocodingService.getFallbackRegionAddress(coords);
+      deliveryAddress = fallback;
+    } else {
+      deliveryAddress = address;
+    }
     deliveryCoords = coords;
     notifyListeners();
   }
