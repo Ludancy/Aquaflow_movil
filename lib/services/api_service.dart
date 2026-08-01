@@ -294,6 +294,19 @@ class ApiService {
     return [];
   }
 
+  static Future<bool> cancelAllActiveUserOrders(String userId) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/api/v1/orders/user/$userId/cancel-active'),
+        headers: _authHeadersOnly,
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      debugPrint('Cancel all active user orders error: $e');
+      return false;
+    }
+  }
+
   // Orders: Accept order as driver (requiere sesión)
   static Future<Map<String, dynamic>?> acceptOrder(
     String orderId,

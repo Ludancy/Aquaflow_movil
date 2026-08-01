@@ -630,15 +630,31 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<bool> cleanupStuckOrders() async {
+    if (!isBackendConnected || currentUserId == null) return false;
+    final ok = await ApiService.cancelAllActiveUserOrders(currentUserId!);
+    if (ok) {
+      activeOrder = null;
+      pendingDriverRequests.clear();
+      await fetchUserOrders();
+      notifyListeners();
+    }
+    return ok;
+  }
+
   // Mensaje del backend cuando createOrder() falla estando conectado (ej. calificación
   // pendiente), para que la UI pueda mostrar el motivo real en vez de uno genérico.
   String? lastOrderError;
+  bool isCreatingOrder = false;
 
   // Create order from client. Devuelve false si el backend rechazó/falló la solicitud
   // estando conectado: en ese caso NO se simula un pedido local, porque un pedido con
   // un ID falso no existe en el backend y no se puede pagar ni cancelar después.
   Future<bool> createOrder() async {
+    if (isCreatingOrder) return false;
+    isCreatingOrder = true;
     lastOrderError = null;
+    try {
 
     if (isBackendConnected) {
       final clientId = currentClientId;
@@ -699,6 +715,10 @@ class AppState extends ChangeNotifier {
     pendingDriverRequests.add(activeOrder!);
     notifyListeners();
     return true;
+    } finally {
+      isCreatingOrder = false;
+      notifyListeners();
+    }
   }
 
   // Mensaje del backend cuando cancelActiveOrder() falla (ej. el pedido ya fue

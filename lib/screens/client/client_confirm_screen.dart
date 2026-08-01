@@ -15,6 +15,7 @@ class ClientConfirmScreen extends StatefulWidget {
 class _ClientConfirmScreenState extends State<ClientConfirmScreen> {
   final _refController = TextEditingController();
   String? _bancoEmisor;
+  bool _isSubmitting = false;
 
   @override
   void initState() {
@@ -274,55 +275,98 @@ class _ClientConfirmScreenState extends State<ClientConfirmScreen> {
                         return;
                       }
 
-                      if (appState.paymentMethod != 'Saldo AquaFlow') {
-                        await appState.savePreferredPaymentMethod(
-                          appState.paymentMethod,
+                      if (_isSubmitting) return;
+                      setState(() => _isSubmitting = true);
+
+                      try {
+                        if (appState.paymentMethod != 'Saldo AquaFlow') {
+                          await appState.savePreferredPaymentMethod(
+                            appState.paymentMethod,
+                            bancoEmisor: appState.paymentMethod == 'Pago Movil'
+                                ? bancoEmisor
+                                : null,
+                          );
+                        }
+
+                        final orderCreated = await appState.createOrder();
+                        if (!orderCreated) {
+                          if (context.mounted) {
+                            final errMsg = appState.lastOrderError ??
+                                'No se pudo crear el pedido. Intenta de nuevo.';
+                            final isStuckActive = errMsg.toLowerCase().contains('activo') ||
+                                errMsg.toLowerCase().contains('curso') ||
+                                errMsg.toLowerCase().contains('calificar');
+
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(errMsg),
+                                backgroundColor: AppTheme.error,
+                                duration: const Duration(seconds: 5),
+                                action: isStuckActive
+                                    ? SnackBarAction(
+                                        label: 'Limpiar Pedidos',
+                                        textColor: Colors.white,
+                                        onPressed: () async {
+                                          final ok = await appState.cleanupStuckOrders();
+                                          if (context.mounted) {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(
+                                                content: Text(
+                                                  ok
+                                                      ? 'Pedidos estancados limpiados exitosamente.'
+                                                      : 'No se pudieron limpiar los pedidos.',
+                                                ),
+                                              ),
+                                            );
+                                          }
+                                        },
+                                      )
+                                    : null,
+                              ),
+                            );
+                          }
+                          return;
+                        }
+                        final ok = await appState.processOrderPayment(
+                          appState.paymentMethod == 'Saldo AquaFlow'
+                              ? 'Saldo AquaFlow'
+                              : referencia,
                           bancoEmisor: appState.paymentMethod == 'Pago Movil'
                               ? bancoEmisor
                               : null,
                         );
-                      }
-
-                      final orderCreated = await appState.createOrder();
-                      if (!orderCreated) {
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                appState.lastOrderError ??
-                                    'No se pudo crear el pedido. Intenta de nuevo.',
-                              ),
-                            ),
-                          );
+                        if (appState.paymentMethod == 'Saldo AquaFlow') {
+                          await appState.refreshClientWallet();
                         }
-                        return;
-                      }
-                      final ok = await appState.processOrderPayment(
-                        appState.paymentMethod == 'Saldo AquaFlow'
-                            ? 'Saldo AquaFlow'
-                            : referencia,
-                        bancoEmisor: appState.paymentMethod == 'Pago Movil'
-                            ? bancoEmisor
-                            : null,
-                      );
-                      if (appState.paymentMethod == 'Saldo AquaFlow') {
-                        await appState.refreshClientWallet();
-                      }
-                      if (context.mounted) {
-                        if (ok) {
-                          _showSuccessDialog(context);
-                        } else {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'No se pudo registrar el pago. Intenta de nuevo.',
+                        if (context.mounted) {
+                          if (ok) {
+                            _showSuccessDialog(context);
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'No se pudo registrar el pago. Intenta de nuevo.',
+                                ),
                               ),
-                            ),
-                          );
+                            );
+                          }
+                        }
+                      } finally {
+                        if (mounted) {
+                          setState(() => _isSubmitting = false);
                         }
                       }
                     },
-                    child: const Text('Confirmar y Solicitar'),
+                    child: _isSubmitting
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text('Confirmar y Solicitar'),
                   ),
                   const SizedBox(height: 40),
                 ],
