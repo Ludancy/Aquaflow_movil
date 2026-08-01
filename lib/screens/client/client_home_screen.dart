@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import '../../services/geocoding_service.dart';
+import '../../services/location_service.dart';
 import '../../state/app_state.dart';
 import '../../theme.dart';
 import '../../widgets/mock_map.dart';
@@ -55,11 +56,56 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
   List<PlaceSuggestion> _searchResults = [];
   Timer? _searchDebounce;
   bool _isSearching = false;
+  bool _isLocatingGps = false;
 
   @override
   void initState() {
     super.initState();
     _searchFocusNode.addListener(_onSearchFocusChange);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final appState = Provider.of<AppState>(context, listen: false);
+      if (appState.deliveryCoords == null && appState.userAddresses.isEmpty) {
+        _useCurrentGpsLocation(appState);
+      }
+    });
+  }
+
+  Future<void> _useCurrentGpsLocation(AppState appState) async {
+    if (_isLocatingGps) return;
+    setState(() => _isLocatingGps = true);
+    try {
+      final pos = await LocationService.getCurrentPosition();
+      if (pos != null) {
+        final coords = LatLng(pos.latitude, pos.longitude);
+        final addressStr = await GeocodingService.reverseGeocode(coords) ??
+            'Ubicación GPS (${pos.latitude.toStringAsFixed(4)}, ${pos.longitude.toStringAsFixed(4)})';
+        appState.setDeliveryLocation(addressStr, coords);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Ubicación actualizada: $addressStr'),
+              backgroundColor: AppTheme.primaryBlue,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No se pudo obtener la ubicación GPS del dispositivo.'),
+              backgroundColor: AppTheme.error,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('Error leyendo GPS: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isLocatingGps = false);
+      }
+    }
   }
 
   void _onSearchFocusChange() {
@@ -563,7 +609,25 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                                       ),
                                     ],
                                   )
-                                : null),
+                                : IconButton(
+                                    icon: _isLocatingGps
+                                        ? const SizedBox(
+                                            width: 16,
+                                            height: 16,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              color: AppTheme.primaryBlue,
+                                            ),
+                                          )
+                                        : const Icon(
+                                            Icons.my_location,
+                                            size: 20,
+                                            color: AppTheme.primaryBlue,
+                                          ),
+                                    tooltip: 'Usar mi ubicación GPS actual',
+                                    onPressed: () =>
+                                        _useCurrentGpsLocation(appState),
+                                  )),
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 16,
                         vertical: 12,

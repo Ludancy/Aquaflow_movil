@@ -15,8 +15,12 @@ class PlaceSuggestion {
 /// y no debe llamarse en cada tecla (usar debounce del lado del widget).
 class GeocodingService {
   static const _baseUrl = 'https://nominatim.openstreetmap.org/search';
+  static const _reverseUrl = 'https://nominatim.openstreetmap.org/reverse';
 
-  static Future<List<PlaceSuggestion>> searchPlaces(String query, {String countryCode = 've'}) async {
+  static Future<List<PlaceSuggestion>> searchPlaces(
+    String query, {
+    String countryCode = 've',
+  }) async {
     if (query.trim().length < 3) return [];
     try {
       final uri = Uri.parse(_baseUrl).replace(queryParameters: {
@@ -28,7 +32,12 @@ class GeocodingService {
       });
 
       final response = await http
-          .get(uri, headers: {'User-Agent': 'AquaFlowApp/1.0 (contacto@aquaflow.com)'})
+          .get(
+            uri,
+            headers: {
+              'User-Agent': 'AquaFlowApp/1.0 (contacto@aquaflow.com)',
+            },
+          )
           .timeout(const Duration(seconds: 6));
 
       if (response.statusCode != 200) return [];
@@ -45,6 +54,34 @@ class GeocodingService {
     } catch (e) {
       debugPrint('Geocoding search error: $e');
       return [];
+    }
+  }
+
+  /// Geocodificación inversa: convierte coordenadas LatLng a una dirección legible
+  static Future<String?> reverseGeocode(LatLng location) async {
+    try {
+      final uri = Uri.parse(_reverseUrl).replace(queryParameters: {
+        'lat': location.latitude.toString(),
+        'lon': location.longitude.toString(),
+        'format': 'jsonv2',
+      });
+
+      final response = await http
+          .get(
+            uri,
+            headers: {
+              'User-Agent': 'AquaFlowApp/1.0 (contacto@aquaflow.com)',
+            },
+          )
+          .timeout(const Duration(seconds: 6));
+
+      if (response.statusCode != 200) return null;
+
+      final Map<String, dynamic> data = jsonDecode(response.body);
+      return data['display_name'] as String?;
+    } catch (e) {
+      debugPrint('Reverse geocoding error: $e');
+      return null;
     }
   }
 }
