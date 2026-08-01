@@ -682,15 +682,9 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
 
                 const SizedBox(height: 12),
 
-                // Row of Chips: Reordenar / Favoritos
+                // Favoritos
                 Row(
                   children: [
-                    _buildTopChip(
-                      icon: Icons.history,
-                      label: 'Reordenar: Casa',
-                      onTap: () {},
-                    ),
-                    const SizedBox(width: 10),
                     _buildTopChip(
                       icon: Icons.star_border,
                       label: 'Favoritos',
