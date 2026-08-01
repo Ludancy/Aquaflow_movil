@@ -347,7 +347,7 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
             behavior: HitTestBehavior.opaque,
             child: MockMapWidget(
               showRoute: false,
-              clientLocation: appState.deliveryCoords,
+              clientLocation: appState.deliveryCoords ?? RealMapWidget.parseCoords(appState.deliveryAddress),
             ),
           ),
         ),

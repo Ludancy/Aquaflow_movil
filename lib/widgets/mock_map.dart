@@ -11,6 +11,21 @@ class RealMapWidget extends StatefulWidget {
   final MapController? controller;
   final bool isDriverView;
 
+  static LatLng? parseCoords(String? str) {
+    if (str == null || str.trim().isEmpty) return null;
+    try {
+      final parts = str.split(',');
+      if (parts.length == 2) {
+        final lat = double.tryParse(parts[0].trim());
+        final lng = double.tryParse(parts[1].trim());
+        if (lat != null && lng != null) {
+          return LatLng(lat, lng);
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
   const RealMapWidget({
     Key? key,
     this.clientLocation,

@@ -116,8 +116,14 @@ class _DriverActiveOrderScreenState extends State<DriverActiveOrderScreen> {
       ),
       body: Stack(
         children: [
-          // Map covering background
-          const Positioned.fill(child: MockMapWidget(showRoute: true, isDriverView: true)),
+          Positioned.fill(
+            child: MockMapWidget(
+              showRoute: true,
+              isDriverView: true,
+              driverLocation: appState.driverCurrentCoords,
+              clientLocation: RealMapWidget.parseCoords(activeOrder.address),
+            ),
+          ),
 
           // Navigation directions floating banner (GPS look)
           if (isInTransit)

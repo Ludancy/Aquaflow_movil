@@ -99,12 +99,20 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   Widget _buildHomeTab(BuildContext context, AppState appState) {
     final hasRequests = appState.pendingDriverRequests.isNotEmpty;
     final incomingRequest = hasRequests ? appState.pendingDriverRequests.first : null;
+    final requestCoords = incomingRequest != null
+        ? RealMapWidget.parseCoords(incomingRequest.address)
+        : null;
 
     return Stack(
       children: [
         // Map Widget filling the screen
-        const Positioned.fill(
-          child: MockMapWidget(showRoute: false, isDriverView: true),
+        Positioned.fill(
+          child: MockMapWidget(
+            showRoute: hasRequests,
+            isDriverView: true,
+            driverLocation: appState.driverCurrentCoords,
+            clientLocation: requestCoords,
+          ),
         ),
 
         // Availability switcher HUD

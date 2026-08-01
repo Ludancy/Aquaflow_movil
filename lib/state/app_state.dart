@@ -158,6 +158,17 @@ class AppState extends ChangeNotifier {
             )
             .toList();
         deliveryAddress = userAddresses.first['direccion_exacta'];
+        if (userAddresses.first['coordenadas'] != null) {
+          final coordsStr = userAddresses.first['coordenadas'] as String;
+          final parts = coordsStr.split(',');
+          if (parts.length == 2) {
+            final lat = double.tryParse(parts[0].trim());
+            final lng = double.tryParse(parts[1].trim());
+            if (lat != null && lng != null) {
+              deliveryCoords = LatLng(lat, lng);
+            }
+          }
+        }
       }
       refreshClientWallet();
     }
@@ -253,6 +264,7 @@ class AppState extends ChangeNotifier {
 
   // Driver State
   bool isDriverAvailable = true;
+  LatLng? driverCurrentCoords;
   List<WaterOrder> pendingDriverRequests = [];
   final List<WaterOrder> driverHistory = [];
   double totalDriverEarnings = 0.0;
@@ -341,6 +353,7 @@ class AppState extends ChangeNotifier {
       );
       return;
     }
+    driverCurrentCoords = LatLng(position.latitude, position.longitude);
     SocketService.connect();
     debugPrint(
       '[PRESENCE] Enviando ping para $currentDriverId (socket conectado: ${SocketService.isConnected})',
@@ -387,6 +400,21 @@ class AppState extends ChangeNotifier {
 
   void setAddress(String address) {
     deliveryAddress = address;
+    final found = userAddresses.firstWhere(
+      (d) => d['direccion_exacta'] == address,
+      orElse: () => {},
+    );
+    if (found.isNotEmpty && found['coordenadas'] != null) {
+      final coordsStr = found['coordenadas'] as String;
+      final parts = coordsStr.split(',');
+      if (parts.length == 2) {
+        final lat = double.tryParse(parts[0].trim());
+        final lng = double.tryParse(parts[1].trim());
+        if (lat != null && lng != null) {
+          deliveryCoords = LatLng(lat, lng);
+        }
+      }
+    }
     notifyListeners();
   }
 
