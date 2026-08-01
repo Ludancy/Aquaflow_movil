@@ -77,7 +77,8 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
       final pos = await LocationService.getCurrentPosition();
       if (pos != null) {
         final coords = LatLng(pos.latitude, pos.longitude);
-        final addressStr = await GeocodingService.reverseGeocode(coords) ??
+        final addressStr =
+            await GeocodingService.reverseGeocode(coords) ??
             '${coords.latitude.toStringAsFixed(5)}, ${coords.longitude.toStringAsFixed(5)}';
         appState.setDeliveryLocation(addressStr, coords);
         if (mounted) {
@@ -93,7 +94,9 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('No se pudo obtener la ubicación GPS del dispositivo.'),
+              content: Text(
+                'No se pudo obtener la ubicación GPS del dispositivo.',
+              ),
               backgroundColor: AppTheme.error,
             ),
           );
@@ -379,8 +382,16 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
     final selectedOption = _tankOptions.firstWhere(
       (opt) => opt['liters'] == appState.selectedLiters,
     );
-    final double basePrice = selectedOption['basePrice'];
-    final double shippingPrice = selectedOption['shippingPrice'];
+    // El precio mostrado tiene que ser SIEMPRE el de la tarifa real del backend que se
+    // va a cobrar (appState.selectedLiters ya la resolvió en selectLiters) — nunca el
+    // número local de _tankOptions, que es solo la etiqueta/ícono de cada tarjeta.
+    final matchingTarifas = appState.backendTarifas.where(
+      (t) => (t['volumen_litros'] as num?)?.toInt() == appState.selectedLiters,
+    );
+    final double basePrice = matchingTarifas.isNotEmpty
+        ? (matchingTarifas.first['precio_base'] as num).toDouble()
+        : selectedOption['basePrice'];
+    const double shippingPrice = AppState.shippingFee;
 
     return Stack(
       children: [
@@ -393,7 +404,9 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
             behavior: HitTestBehavior.opaque,
             child: MockMapWidget(
               showRoute: false,
-              clientLocation: appState.deliveryCoords ?? RealMapWidget.parseCoords(appState.deliveryAddress),
+              clientLocation:
+                  appState.deliveryCoords ??
+                  RealMapWidget.parseCoords(appState.deliveryAddress),
             ),
           ),
         ),
@@ -1029,9 +1042,32 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
 
                             const SizedBox(height: 20),
 
+                            // Sin esto, un tamaño sin tarifa real en el backend dejaba pedir
+                            // igual y cobraba el precio de una tarifa de otro volumen (ver
+                            // incidente: 2000L mostraba $42 pero facturó $902).
+                            if (appState.activeOrder == null &&
+                                appState.isBackendConnected &&
+                                !appState.selectedTarifaIsReal)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: Text(
+                                  'Esta capacidad no tiene una tarifa configurada todavía. Elige otra o intenta más tarde.',
+                                  style: TextStyle(
+                                    color: AppTheme.error,
+                                    fontSize: 12,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+
                             // Confirmation Button
                             ElevatedButton(
-                              onPressed: appState.activeOrder != null
+                              onPressed:
+                                  appState.activeOrder == null &&
+                                      appState.isBackendConnected &&
+                                      !appState.selectedTarifaIsReal
+                                  ? null
+                                  : appState.activeOrder != null
                                   ? () {
                                       Navigator.push(
                                         context,

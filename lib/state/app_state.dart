@@ -250,6 +250,12 @@ class AppState extends ChangeNotifier {
   // Client Selection State
   int selectedLiters = 2000;
   double selectedPrice = 20.00;
+  // Debe coincidir con costo_envio en orders.controller.ts#requestWater — no hay forma de
+  // leerlo del backend antes de crear el pedido, así que se mantiene igual a mano.
+  static const double shippingFee = 2.0;
+  // true si la tarifa activa vino de una coincidencia real en backendTarifas (no de un
+  // fallback local): úsalo para no dejar pedir un tamaño sin tarifa real detrás.
+  bool selectedTarifaIsReal = false;
   String paymentMethod =
       'Pago Movil'; // debe coincidir con el literal Zod del backend (sin tilde)
 
@@ -327,14 +333,11 @@ class AppState extends ChangeNotifier {
     _driverPollTimer?.cancel();
     // Polling de respaldo cada 8s para sincronizar nuevos pedidos pendientes en vivo
     // aun si una señal de socket se pierde por parpadeo de red móvil.
-    _driverPollTimer = Timer.periodic(
-      const Duration(seconds: 8),
-      (_) {
-        if (isDriverAvailable && currentDriverId != null && isBackendConnected) {
-          fetchUserOrders();
-        }
-      },
-    );
+    _driverPollTimer = Timer.periodic(const Duration(seconds: 8), (_) {
+      if (isDriverAvailable && currentDriverId != null && isBackendConnected) {
+        fetchUserOrders();
+      }
+    });
   }
 
   void _stopDriverPolling() {
@@ -395,15 +398,25 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void selectLiters(int liters, double price) {
+  // El precio que se cobra realmente sale SIEMPRE de la tarifa real del backend que
+  // coincide en volumen, nunca de un valor local. Antes esto caía a "la primera tarifa
+  // que exista" cuando no había una para el volumen elegido, cobrando un monto sin
+  // relación con lo mostrado en pantalla (ver incidente: 2000L mostraba $42 pero
+  // facturaba $902 porque tomaba una tarifa de otro volumen).
+  void selectLiters(int liters, double fallbackPrice) {
     selectedLiters = liters;
-    selectedPrice = price;
-    if (backendTarifas.isNotEmpty) {
-      final matching = backendTarifas.firstWhere(
-        (t) => (t['volumen_litros'] as num?)?.toInt() == liters,
-        orElse: () => backendTarifas.first,
-      );
+    final matches = backendTarifas.where(
+      (t) => (t['volumen_litros'] as num?)?.toInt() == liters,
+    );
+    if (matches.isNotEmpty) {
+      final matching = matches.first;
       activeTarifaId = matching['id_tarifa'];
+      selectedPrice = (matching['precio_base'] as num).toDouble() + shippingFee;
+      selectedTarifaIsReal = true;
+    } else {
+      activeTarifaId = null;
+      selectedPrice = fallbackPrice;
+      selectedTarifaIsReal = false;
     }
     notifyListeners();
   }
@@ -431,7 +444,8 @@ class AppState extends ChangeNotifier {
   // Establecido al elegir un resultado del buscador de lugares (autocompletado)
   void setDeliveryLocation(String address, LatLng coords) {
     if (address.contains('(') || address.startsWith('Ubicación GPS')) {
-      final fallback = GeocodingService.getCachedAddress(coords) ??
+      final fallback =
+          GeocodingService.getCachedAddress(coords) ??
           '${coords.latitude.toStringAsFixed(5)}, ${coords.longitude.toStringAsFixed(5)}';
       deliveryAddress = fallback;
     } else {
@@ -563,7 +577,9 @@ class AppState extends ChangeNotifier {
     if (coords == null) return;
 
     final cached = GeocodingService.getCachedAddress(coords);
-    if (cached != null && cached.isNotEmpty && !cached.startsWith('Ubicación')) {
+    if (cached != null &&
+        cached.isNotEmpty &&
+        !cached.startsWith('Ubicación')) {
       order.address = cached;
     }
 
@@ -682,7 +698,10 @@ class AppState extends ChangeNotifier {
 
     if (currentDriverId != null || currentRole == AppRole.driver) {
       totalDriverEarnings = calcEarned;
-      walletBalanceUsd = (calcEarned - totalWithdrawn).clamp(0.0, double.infinity);
+      walletBalanceUsd = (calcEarned - totalWithdrawn).clamp(
+        0.0,
+        double.infinity,
+      );
       tripsCompleted = calcCompleted;
     }
 
@@ -714,66 +733,65 @@ class AppState extends ChangeNotifier {
     isCreatingOrder = true;
     lastOrderError = null;
     try {
+      if (isBackendConnected) {
+        final clientId = currentClientId;
+        final tarifaId = activeTarifaId;
 
-    if (isBackendConnected) {
-      final clientId = currentClientId;
-      final tarifaId = activeTarifaId;
+        if (clientId != null && tarifaId != null) {
+          final coordsStr = deliveryCoords != null
+              ? '${deliveryCoords!.latitude},${deliveryCoords!.longitude}'
+              : (deliveryAddress.isNotEmpty ? deliveryAddress : '10.48,-66.90');
 
-      if (clientId != null && tarifaId != null) {
-        final coordsStr = deliveryCoords != null
-            ? '${deliveryCoords!.latitude},${deliveryCoords!.longitude}'
-            : (deliveryAddress.isNotEmpty ? deliveryAddress : '10.48,-66.90');
-
-        final res = await ApiService.requestOrder(
-          clientId: clientId,
-          tarifaId: tarifaId,
-          destinationCoords: coordsStr,
-        );
-
-        if (res != null &&
-            res['data'] != null &&
-            res['data']['id_pedido'] != null) {
-          activeOrder = WaterOrder(
-            id: res['data']['id_pedido'],
-            dateTime: DateTime.now(),
-            liters: selectedLiters,
-            price: selectedPrice,
-            address: deliveryAddress,
-            coordinates: coordsStr,
-            paymentMethod: paymentMethod,
-            status: OrderStatus.requested,
+          final res = await ApiService.requestOrder(
+            clientId: clientId,
+            tarifaId: tarifaId,
+            destinationCoords: coordsStr,
           );
-          clientHistory.insert(0, activeOrder!);
-          pendingDriverRequests.clear();
-          pendingDriverRequests.add(activeOrder!);
+
+          if (res != null &&
+              res['data'] != null &&
+              res['data']['id_pedido'] != null) {
+            activeOrder = WaterOrder(
+              id: res['data']['id_pedido'],
+              dateTime: DateTime.now(),
+              liters: selectedLiters,
+              price: selectedPrice,
+              address: deliveryAddress,
+              coordinates: coordsStr,
+              paymentMethod: paymentMethod,
+              status: OrderStatus.requested,
+            );
+            clientHistory.insert(0, activeOrder!);
+            pendingDriverRequests.clear();
+            pendingDriverRequests.add(activeOrder!);
+            notifyListeners();
+            return true;
+          }
+
+          lastOrderError = ApiService.extractErrorMessage(res);
           notifyListeners();
-          return true;
+          return false;
         }
-
-        lastOrderError = ApiService.extractErrorMessage(res);
-        notifyListeners();
-        return false;
       }
-    }
 
-    // Sin backend conectado (o sin ids de cliente/tarifa todavía): simular el pedido
-    // localmente, como el resto de AppState hace cuando no hay conexión al servidor.
-    final orderId =
-        'ORD-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
-    activeOrder = WaterOrder(
-      id: orderId,
-      dateTime: DateTime.now(),
-      liters: selectedLiters,
-      price: selectedPrice,
-      address: deliveryAddress,
-      paymentMethod: paymentMethod,
-      status: OrderStatus.requested,
-    );
-    clientHistory.insert(0, activeOrder!);
-    pendingDriverRequests.clear();
-    pendingDriverRequests.add(activeOrder!);
-    notifyListeners();
-    return true;
+      // Sin backend conectado (o sin ids de cliente/tarifa todavía): simular el pedido
+      // localmente, como el resto de AppState hace cuando no hay conexión al servidor.
+      final orderId =
+          'ORD-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
+      activeOrder = WaterOrder(
+        id: orderId,
+        dateTime: DateTime.now(),
+        liters: selectedLiters,
+        price: selectedPrice,
+        address: deliveryAddress,
+        paymentMethod: paymentMethod,
+        status: OrderStatus.requested,
+      );
+      clientHistory.insert(0, activeOrder!);
+      pendingDriverRequests.clear();
+      pendingDriverRequests.add(activeOrder!);
+      notifyListeners();
+      return true;
     } finally {
       isCreatingOrder = false;
       notifyListeners();
