@@ -18,15 +18,19 @@ class GeocodingService {
   // Cache en memoria de coordenadas -> dirección formateada legible
   static final Map<String, String> _reverseCache = {};
 
-  static String formatShortAddress(String fullAddress) {
+  /// Mantiene la dirección completa de Nominatim (calle, sector, edificio, municipio, estado)
+  /// eliminando únicamente el código postal o sufijos redundantes de país.
+  static String cleanDisplayName(String fullAddress) {
     if (fullAddress.trim().isEmpty) return fullAddress;
     final parts = fullAddress
         .split(',')
         .map((s) => s.trim())
-        .where((s) => s.isNotEmpty && s.toLowerCase() != 'venezuela')
+        .where((s) =>
+            s.isNotEmpty &&
+            s.toLowerCase() != 'venezuela' &&
+            !RegExp(r'^\d{4,5}$').hasMatch(s))
         .toList();
-    if (parts.length <= 3) return parts.join(', ');
-    return '${parts[0]}, ${parts[1]}, ${parts[2]}';
+    return parts.join(', ');
   }
 
   static String getFallbackRegionAddress(LatLng location) {
@@ -34,7 +38,7 @@ class GeocodingService {
     final lon = location.longitude;
 
     if (lat >= 8.15 && lat <= 8.45 && lon >= -62.90 && lon <= -62.55) {
-      return 'Puerto Ordaz, Bolívar';
+      return 'Puerto Ordaz, Estado Bolívar';
     }
     if (lat >= 10.35 && lat <= 10.60 && lon >= -67.05 && lon <= -66.75) {
       return 'Caracas, Distrito Capital';
@@ -73,34 +77,34 @@ class GeocodingService {
     final localDb = [
       // Puerto Ordaz / Ciudad Guayana / Bolívar
       PlaceSuggestion(
-          displayName: 'Alta Vista, Puerto Ordaz, Bolívar',
+          displayName: 'Sector Alta Vista, Puerto Ordaz, Municipio Caroní, Estado Bolívar',
           location: LatLng(8.2975, -62.7118)),
       PlaceSuggestion(
-          displayName: 'Unare, Puerto Ordaz, Bolívar',
+          displayName: 'Sector Unare, Puerto Ordaz, Municipio Caroní, Estado Bolívar',
           location: LatLng(8.2831, -62.7482)),
       PlaceSuggestion(
-          displayName: 'Castillito, Puerto Ordaz, Bolívar',
+          displayName: 'Castillito, Puerto Ordaz, Municipio Caroní, Estado Bolívar',
           location: LatLng(8.3491, -62.6789)),
       PlaceSuggestion(
-          displayName: 'Chilemex, Puerto Ordaz, Bolívar',
+          displayName: 'Chilemex, Puerto Ordaz, Municipio Caroní, Estado Bolívar',
           location: LatLng(8.3050, -62.7150)),
       PlaceSuggestion(
-          displayName: 'Los Olivos, Puerto Ordaz, Bolívar',
+          displayName: 'Urbanización Los Olivos, Puerto Ordaz, Estado Bolívar',
           location: LatLng(8.2910, -62.7230)),
       PlaceSuggestion(
-          displayName: 'Villa Alianza, Puerto Ordaz, Bolívar',
+          displayName: 'Urbanización Villa Alianza, Puerto Ordaz, Estado Bolívar',
           location: LatLng(8.3120, -62.7050)),
       PlaceSuggestion(
-          displayName: 'San Félix, Ciudad Guayana, Bolívar',
+          displayName: 'San Félix, Ciudad Guayana, Municipio Caroní, Estado Bolívar',
           location: LatLng(8.3540, -62.6320)),
       PlaceSuggestion(
-          displayName: 'Avenida Guayana, Puerto Ordaz, Bolívar',
+          displayName: 'Avenida Guayana, Puerto Ordaz, Estado Bolívar',
           location: LatLng(8.3131, -62.7270)),
       PlaceSuggestion(
-          displayName: 'Avenida Angosturita, Puerto Ordaz, Bolívar',
+          displayName: 'Avenida Angosturita, Puerto Ordaz, Estado Bolívar',
           location: LatLng(8.3150, -62.7100)),
       PlaceSuggestion(
-          displayName: 'Paseo Caroní, Puerto Ordaz, Bolívar',
+          displayName: 'Paseo Caroní, Unare, Puerto Ordaz, Estado Bolívar',
           location: LatLng(8.2890, -62.7350)),
 
       // Caracas / Distrito Capital / Miranda
@@ -108,60 +112,51 @@ class GeocodingService {
           displayName: 'Caracas, Distrito Capital',
           location: LatLng(10.4806, -66.9036)),
       PlaceSuggestion(
-          displayName: 'Altamira, Chacao, Caracas',
+          displayName: 'Altamira, Municipio Chacao, Caracas, Estado Miranda',
           location: LatLng(10.4960, -66.8530)),
       PlaceSuggestion(
-          displayName: 'Las Mercedes, Baruta, Caracas',
+          displayName: 'Las Mercedes, Municipio Baruta, Caracas, Estado Miranda',
           location: LatLng(10.4810, -66.8620)),
       PlaceSuggestion(
-          displayName: 'Plaza Venezuela, Caracas',
+          displayName: 'Plaza Venezuela, Los Caobos, Caracas, Distrito Capital',
           location: LatLng(10.4980, -66.8850)),
       PlaceSuggestion(
-          displayName: 'Sabana Grande, Caracas',
+          displayName: 'Bulevar de Sabana Grande, Caracas, Distrito Capital',
           location: LatLng(10.4950, -66.8780)),
       PlaceSuggestion(
-          displayName: 'Chacao, Miranda, Caracas',
-          location: LatLng(10.4920, -66.8560)),
-      PlaceSuggestion(
-          displayName: 'El Recreo, Caracas',
-          location: LatLng(10.4930, -66.8810)),
-      PlaceSuggestion(
-          displayName: 'Catia, Sucre, Caracas',
+          displayName: 'Catia, Parroquia Sucre, Caracas, Distrito Capital',
           location: LatLng(10.5210, -66.9422)),
       PlaceSuggestion(
-          displayName: 'El Valle, Caracas',
+          displayName: 'El Valle, Parroquia El Valle, Caracas, Distrito Capital',
           location: LatLng(10.4610, -66.9080)),
       PlaceSuggestion(
-          displayName: 'Petare, Sucre, Miranda',
+          displayName: 'Petare, Municipio Sucre, Estado Miranda',
           location: LatLng(10.4780, -66.8150)),
 
       // Other main cities
       PlaceSuggestion(
-          displayName: 'Valencia, Carabobo',
+          displayName: 'Valencia, Estado Carabobo',
           location: LatLng(10.1620, -68.0077)),
       PlaceSuggestion(
-          displayName: 'Maracay, Aragua',
+          displayName: 'Maracay, Estado Aragua',
           location: LatLng(10.2469, -67.5958)),
       PlaceSuggestion(
-          displayName: 'Maracaibo, Zulia',
+          displayName: 'Maracaibo, Estado Zulia',
           location: LatLng(10.6427, -71.6125)),
       PlaceSuggestion(
-          displayName: 'Barquisimeto, Lara',
+          displayName: 'Barquisimeto, Estado Lara',
           location: LatLng(10.0678, -69.3474)),
       PlaceSuggestion(
-          displayName: 'Lechería, Anzoátegui',
+          displayName: 'Lechería, Municipio Urbaneja, Estado Anzoátegui',
           location: LatLng(10.1980, -64.6930)),
       PlaceSuggestion(
-          displayName: 'Barcelona, Anzoátegui',
-          location: LatLng(10.1360, -64.6860)),
-      PlaceSuggestion(
-          displayName: 'Maturín, Monagas',
+          displayName: 'Maturín, Estado Monagas',
           location: LatLng(9.7457, -63.1832)),
       PlaceSuggestion(
-          displayName: 'Mérida, Estado Mérida',
+          displayName: 'Mérida, Municipio Libertador, Estado Mérida',
           location: LatLng(8.5983, -71.1449)),
       PlaceSuggestion(
-          displayName: 'Porlamar, Nueva Esparta',
+          displayName: 'Porlamar, Municipio Mariño, Estado Nueva Esparta',
           location: LatLng(10.9577, -63.8697)),
     ];
 
@@ -178,14 +173,11 @@ class GeocodingService {
     final suggestions = <PlaceSuggestion>[];
 
     try {
-      final qParam = cleanQuery.toLowerCase().contains('venezuela')
-          ? cleanQuery
-          : '$cleanQuery, Venezuela';
-
       final uri = Uri.parse(_baseUrl).replace(queryParameters: {
-        'q': qParam,
+        'q': cleanQuery,
+        'countrycodes': 've',
         'format': 'jsonv2',
-        'limit': '8',
+        'limit': '10',
         'addressdetails': '1',
       });
 
@@ -206,7 +198,7 @@ class GeocodingService {
           final lat = double.tryParse(r['lat']?.toString() ?? '') ?? 0.0;
           final lon = double.tryParse(r['lon']?.toString() ?? '') ?? 0.0;
           final rawName = r['display_name'] as String? ?? cleanQuery;
-          final name = formatShortAddress(rawName);
+          final name = cleanDisplayName(rawName);
           if (lat != 0.0 && lon != 0.0) {
             suggestions.add(PlaceSuggestion(
               displayName: name,
@@ -222,7 +214,8 @@ class GeocodingService {
     final localMatches = getLocalPlaceSuggestions(cleanQuery);
     for (var match in localMatches) {
       if (!suggestions.any((s) =>
-          s.displayName.toLowerCase() == match.displayName.toLowerCase())) {
+          s.displayName.toLowerCase().contains(match.displayName.toLowerCase()) ||
+          match.displayName.toLowerCase().contains(s.displayName.toLowerCase()))) {
         suggestions.add(match);
       }
     }
@@ -230,7 +223,7 @@ class GeocodingService {
     return suggestions;
   }
 
-  /// Geocodificación inversa detallada: convierte LatLng a Calle, Sector y Ciudad
+  /// Geocodificación inversa detallada completa: convierte LatLng a la dirección completa de Nominatim
   static Future<String?> reverseGeocode(LatLng location) async {
     final cacheKey =
         '${location.latitude.toStringAsFixed(4)},${location.longitude.toStringAsFixed(4)}';
@@ -260,6 +253,13 @@ class GeocodingService {
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = jsonDecode(response.body);
+
+        final rawName = data['display_name'] as String?;
+        if (rawName != null && rawName.trim().isNotEmpty) {
+          final clean = cleanDisplayName(rawName);
+          _reverseCache[cacheKey] = clean;
+          return clean;
+        }
 
         if (data['address'] != null) {
           final addr = data['address'] as Map<String, dynamic>;
@@ -297,13 +297,6 @@ class GeocodingService {
             _reverseCache[cacheKey] = detailed;
             return detailed;
           }
-        }
-
-        final rawName = data['display_name'] as String?;
-        if (rawName != null && rawName.isNotEmpty) {
-          final formatted = formatShortAddress(rawName);
-          _reverseCache[cacheKey] = formatted;
-          return formatted;
         }
       }
     } catch (e) {
