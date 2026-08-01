@@ -405,7 +405,7 @@ class AppState extends ChangeNotifier {
       );
       activeTarifaId = matching['id_tarifa'];
       if (matching['precio_base'] != null) {
-        selectedPrice = (matching['precio_base'] as num).toDouble();
+        selectedPrice = (matching['precio_base'] as num).toDouble() + 2.0;
       }
     }
     notifyListeners();
