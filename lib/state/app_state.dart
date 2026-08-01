@@ -270,6 +270,7 @@ class AppState extends ChangeNotifier {
   List<WaterOrder> pendingDriverRequests = [];
   final List<WaterOrder> driverHistory = [];
   double totalDriverEarnings = 0.0;
+  double totalWithdrawn = 0.0;
   int tripsCompleted = 0;
   double driverRating = 5.0;
 
@@ -586,8 +587,12 @@ class AppState extends ChangeNotifier {
 
     final ordersData = await ApiService.getUserOrders(currentUserId!);
     clientHistory.clear();
+    driverHistory.clear();
     pendingDriverRequests.clear();
     activeOrder = null;
+
+    double calcEarned = 0.0;
+    int calcCompleted = 0;
 
     if (ordersData.isNotEmpty) {
       for (var o in ordersData) {
@@ -671,8 +676,22 @@ class AppState extends ChangeNotifier {
         }
 
         clientHistory.add(mappedOrder);
+
+        if (status == OrderStatus.delivered &&
+            (dId == currentDriverId || currentRole == AppRole.driver)) {
+          driverHistory.add(mappedOrder);
+          calcEarned += mappedOrder.price;
+          calcCompleted += 1;
+        }
       }
     }
+
+    if (currentDriverId != null || currentRole == AppRole.driver) {
+      totalDriverEarnings = calcEarned;
+      walletBalanceUsd = (calcEarned - totalWithdrawn).clamp(0.0, double.infinity);
+      tripsCompleted = calcCompleted;
+    }
+
     notifyListeners();
   }
 

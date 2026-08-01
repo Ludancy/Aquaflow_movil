@@ -61,7 +61,18 @@ class DriverEarningsScreen extends StatelessWidget {
     
     final List<double> weeklyEarnings = List.generate(7, (i) => 0.0);
     final List<String> weekDays = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
-    final double maxEarn = 0.0;
+
+    for (var order in appState.driverHistory) {
+      final dayIdx = order.dateTime.weekday - 1;
+      if (dayIdx >= 0 && dayIdx < 7) {
+        weeklyEarnings[dayIdx] += order.price;
+      }
+    }
+
+    double maxEarn = 0.0;
+    for (var val in weeklyEarnings) {
+      if (val > maxEarn) maxEarn = val;
+    }
 
     return Scaffold(
       backgroundColor: AppTheme.backgroundDark,
@@ -254,8 +265,10 @@ class DriverEarningsScreen extends StatelessWidget {
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
-                                    'Cliente: ${appState.userName}',
+                                    'Destino: ${order.address}',
                                     style: const TextStyle(fontSize: 11, color: AppTheme.textMuted),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ],
                               ),
