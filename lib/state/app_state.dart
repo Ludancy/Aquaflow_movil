@@ -4,8 +4,10 @@ import 'package:latlong2/latlong.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/order.dart';
 import '../services/api_service.dart';
+import '../services/geocoding_service.dart';
 import '../services/location_service.dart';
 import '../services/socket_service.dart';
+import '../widgets/mock_map.dart';
 
 enum AppRole { client, driver }
 
@@ -539,6 +541,39 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  void _resolveOrderAddress(WaterOrder order) {
+    final coordsStr = order.coordinates;
+    if (coordsStr == null || coordsStr.trim().isEmpty) return;
+
+    final coords = RealMapWidget.parseCoords(coordsStr);
+    if (coords == null) return;
+
+    final cached = GeocodingService.getCachedAddress(coords);
+    if (cached != null && cached.isNotEmpty) {
+      if (order.address.contains('(') ||
+          order.address.contains('Ubicación') ||
+          order.address == coordsStr ||
+          order.address == 'Cargando ubicación...' ||
+          order.address.isEmpty) {
+        order.address = cached;
+      }
+      return;
+    }
+
+    GeocodingService.reverseGeocode(coords).then((resolved) {
+      if (resolved != null && resolved.isNotEmpty) {
+        if (order.address.contains('(') ||
+            order.address.contains('Ubicación') ||
+            order.address == coordsStr ||
+            order.address == 'Cargando ubicación...' ||
+            order.address.isEmpty) {
+          order.address = resolved;
+          notifyListeners();
+        }
+      }
+    });
+  }
+
   // Fetch backend orders strictly from database
   Future<void> fetchUserOrders() async {
     if (!isBackendConnected || currentUserId == null) return;
@@ -568,7 +603,7 @@ class AppState extends ChangeNotifier {
         }
 
         final destCoordsStr = o['coordenadas_destino'] as String? ?? '';
-        String readableAddressStr = deliveryAddress;
+        String readableAddressStr = '';
 
         // Check if matching address is in saved addresses list
         final matchSaved = userAddresses.firstWhere(
@@ -588,11 +623,12 @@ class AppState extends ChangeNotifier {
           if (foundDir['direccion_exacta'] != null) {
             readableAddressStr = foundDir['direccion_exacta'];
           }
-        } else if (destCoordsStr.isNotEmpty &&
-            !destCoordsStr.contains(RegExp(r'[a-zA-Z]'))) {
-          readableAddressStr = deliveryAddress.isNotEmpty
-              ? deliveryAddress
-              : 'Ubicación de entrega ($destCoordsStr)';
+        }
+
+        if (readableAddressStr.isEmpty &&
+            deliveryAddress.isNotEmpty &&
+            !deliveryAddress.startsWith('Ubicación de entrega (')) {
+          readableAddressStr = deliveryAddress;
         }
 
         final mappedOrder = WaterOrder(
@@ -603,7 +639,9 @@ class AppState extends ChangeNotifier {
               ? (o['tarifa']['volumen_litros'] as num).toInt()
               : 2000,
           price: (o['monto_total'] as num?)?.toDouble() ?? selectedPrice,
-          address: readableAddressStr,
+          address: readableAddressStr.isNotEmpty
+              ? readableAddressStr
+              : 'Cargando ubicación...',
           coordinates: destCoordsStr,
           paymentMethod: 'Pago Movil',
           status: status,
@@ -612,6 +650,8 @@ class AppState extends ChangeNotifier {
           driverPhone: dPhone,
           driverPlate: dPlate,
         );
+
+        _resolveOrderAddress(mappedOrder);
 
         if (status == OrderStatus.requested ||
             status == OrderStatus.accepted ||

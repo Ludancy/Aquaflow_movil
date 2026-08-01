@@ -5,7 +5,7 @@ class WaterOrder {
   final DateTime dateTime;
   final int liters;
   final double price;
-  final String address;
+  String address;
   final String? coordinates;
   final String paymentMethod;
   OrderStatus status;
