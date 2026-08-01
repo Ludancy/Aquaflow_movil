@@ -6,6 +6,7 @@ class WaterOrder {
   final int liters;
   final double price;
   final String address;
+  final String? coordinates;
   final String paymentMethod;
   OrderStatus status;
 
@@ -21,6 +22,7 @@ class WaterOrder {
     required this.liters,
     required this.price,
     required this.address,
+    this.coordinates,
     required this.paymentMethod,
     required this.status,
     this.driverId,

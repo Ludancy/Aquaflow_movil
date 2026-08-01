@@ -567,6 +567,34 @@ class AppState extends ChangeNotifier {
           }
         }
 
+        final destCoordsStr = o['coordenadas_destino'] as String? ?? '';
+        String readableAddressStr = deliveryAddress;
+
+        // Check if matching address is in saved addresses list
+        final matchSaved = userAddresses.firstWhere(
+          (d) => d['coordenadas'] == destCoordsStr,
+          orElse: () => {},
+        );
+        if (matchSaved.isNotEmpty && matchSaved['direccion_exacta'] != null) {
+          readableAddressStr = matchSaved['direccion_exacta'];
+        } else if (o['cliente'] != null &&
+            o['cliente']['direcciones'] != null &&
+            (o['cliente']['direcciones'] as List).isNotEmpty) {
+          final dirs = o['cliente']['direcciones'] as List;
+          final foundDir = dirs.firstWhere(
+            (d) => d['coordenadas'] == destCoordsStr,
+            orElse: () => dirs.first,
+          );
+          if (foundDir['direccion_exacta'] != null) {
+            readableAddressStr = foundDir['direccion_exacta'];
+          }
+        } else if (destCoordsStr.isNotEmpty &&
+            !destCoordsStr.contains(RegExp(r'[a-zA-Z]'))) {
+          readableAddressStr = deliveryAddress.isNotEmpty
+              ? deliveryAddress
+              : 'Ubicación de entrega ($destCoordsStr)';
+        }
+
         final mappedOrder = WaterOrder(
           id: o['id_pedido'] ?? 'Pedido',
           dateTime:
@@ -575,7 +603,8 @@ class AppState extends ChangeNotifier {
               ? (o['tarifa']['volumen_litros'] as num).toInt()
               : 2000,
           price: (o['monto_total'] as num?)?.toDouble() ?? selectedPrice,
-          address: o['coordenadas_destino'] ?? deliveryAddress,
+          address: readableAddressStr,
+          coordinates: destCoordsStr,
           paymentMethod: 'Pago Movil',
           status: status,
           driverId: dId,
@@ -616,12 +645,14 @@ class AppState extends ChangeNotifier {
       final tarifaId = activeTarifaId;
 
       if (clientId != null && tarifaId != null) {
+        final coordsStr = deliveryCoords != null
+            ? '${deliveryCoords!.latitude},${deliveryCoords!.longitude}'
+            : (deliveryAddress.isNotEmpty ? deliveryAddress : '10.48,-66.90');
+
         final res = await ApiService.requestOrder(
           clientId: clientId,
           tarifaId: tarifaId,
-          destinationCoords: deliveryCoords != null
-              ? '${deliveryCoords!.latitude},${deliveryCoords!.longitude}'
-              : (deliveryAddress.isNotEmpty ? deliveryAddress : '10.48,-66.90'),
+          destinationCoords: coordsStr,
         );
 
         if (res != null &&
@@ -633,6 +664,7 @@ class AppState extends ChangeNotifier {
             liters: selectedLiters,
             price: selectedPrice,
             address: deliveryAddress,
+            coordinates: coordsStr,
             paymentMethod: paymentMethod,
             status: OrderStatus.requested,
           );

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import '../../models/order.dart';
+import '../../services/location_service.dart';
 import '../../state/app_state.dart';
 import '../../theme.dart';
 import '../../widgets/mock_map.dart';
@@ -100,7 +102,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     final hasRequests = appState.pendingDriverRequests.isNotEmpty;
     final incomingRequest = hasRequests ? appState.pendingDriverRequests.first : null;
     final requestCoords = incomingRequest != null
-        ? RealMapWidget.parseCoords(incomingRequest.address)
+        ? RealMapWidget.parseCoords(incomingRequest.coordinates ?? incomingRequest.address)
         : null;
 
     return Stack(
@@ -202,6 +204,35 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                 ),
               ),
             ],
+          ),
+        ),
+
+        // Driver GPS Location FAB
+        Positioned(
+          bottom: incomingRequest != null && appState.isDriverAvailable ? 340 : 80,
+          right: 16,
+          child: FloatingActionButton.small(
+            heroTag: 'driverHomeGpsFab',
+            backgroundColor: AppTheme.cardDark,
+            elevation: 4,
+            shape: const CircleBorder(side: BorderSide(color: AppTheme.borderDark)),
+            child: const Icon(Icons.my_location, color: Color(0xFF00FFC2), size: 20),
+            onPressed: () async {
+              final pos = await LocationService.getCurrentPosition();
+              if (pos != null) {
+                appState.driverCurrentCoords = LatLng(pos.latitude, pos.longitude);
+                appState.notifyListeners();
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Ubicación de cisterna actualizada'),
+                      backgroundColor: AppTheme.cardDark,
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                }
+              }
+            },
           ),
         ),
 

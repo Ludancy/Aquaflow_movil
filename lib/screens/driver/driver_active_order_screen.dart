@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import '../../models/order.dart';
+import '../../services/location_service.dart';
 import '../../state/app_state.dart';
 import '../../theme.dart';
 import '../../widgets/mock_map.dart';
@@ -121,7 +123,38 @@ class _DriverActiveOrderScreenState extends State<DriverActiveOrderScreen> {
               showRoute: true,
               isDriverView: true,
               driverLocation: appState.driverCurrentCoords,
-              clientLocation: RealMapWidget.parseCoords(activeOrder.address),
+              clientLocation: RealMapWidget.parseCoords(
+                activeOrder.coordinates ?? activeOrder.address,
+              ),
+            ),
+          ),
+
+          // Driver GPS Location FAB
+          Positioned(
+            top: 90,
+            right: 16,
+            child: FloatingActionButton.small(
+              heroTag: 'driverActiveGpsFab',
+              backgroundColor: AppTheme.cardDark,
+              elevation: 4,
+              shape: const CircleBorder(side: BorderSide(color: AppTheme.borderDark)),
+              child: const Icon(Icons.my_location, color: Color(0xFF00FFC2), size: 20),
+              onPressed: () async {
+                final pos = await LocationService.getCurrentPosition();
+                if (pos != null) {
+                  appState.driverCurrentCoords = LatLng(pos.latitude, pos.longitude);
+                  appState.notifyListeners();
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Ubicación de cisterna actualizada'),
+                        backgroundColor: AppTheme.cardDark,
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+                  }
+                }
+              },
             ),
           ),
 
