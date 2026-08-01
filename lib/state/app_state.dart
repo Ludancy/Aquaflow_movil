@@ -131,7 +131,7 @@ class AppState extends ChangeNotifier {
       final tarifas = await ApiService.getTarifas();
       backendTarifas = tarifas;
       if (tarifas.isNotEmpty) {
-        activeTarifaId = tarifas.first['id_tarifa'];
+        selectLiters(selectedLiters, selectedPrice);
       }
       paymentInfo = await ApiService.getPaymentInfo();
     }
@@ -398,6 +398,16 @@ class AppState extends ChangeNotifier {
   void selectLiters(int liters, double price) {
     selectedLiters = liters;
     selectedPrice = price;
+    if (backendTarifas.isNotEmpty) {
+      final matching = backendTarifas.firstWhere(
+        (t) => (t['volumen_litros'] as num?)?.toInt() == liters,
+        orElse: () => backendTarifas.first,
+      );
+      activeTarifaId = matching['id_tarifa'];
+      if (matching['precio_base'] != null) {
+        selectedPrice = (matching['precio_base'] as num).toDouble();
+      }
+    }
     notifyListeners();
   }
 
