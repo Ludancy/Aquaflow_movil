@@ -66,45 +66,111 @@ class GeocodingService {
     return 'Ubicación cercana (${lat.toStringAsFixed(3)}, ${lon.toStringAsFixed(3)})';
   }
 
-  static Future<List<PlaceSuggestion>> searchPlaces(
-    String query, {
-    String countryCode = 've',
-  }) async {
-    if (query.trim().length < 3) return [];
+  static List<PlaceSuggestion> getLocalPlaceSuggestions(String query) {
+    final q = query.toLowerCase().trim();
+    if (q.length < 2) return [];
+
+    final localDb = [
+      // Puerto Ordaz / Ciudad Guayana / Bolívar
+      PlaceSuggestion(displayName: 'Alta Vista, Puerto Ordaz, Bolívar', location: LatLng(8.2975, -62.7118)),
+      PlaceSuggestion(displayName: 'Unare, Puerto Ordaz, Bolívar', location: LatLng(8.2831, -62.7482)),
+      PlaceSuggestion(displayName: 'Castillito, Puerto Ordaz, Bolívar', location: LatLng(8.3491, -62.6789)),
+      PlaceSuggestion(displayName: 'Chilemex, Puerto Ordaz, Bolívar', location: LatLng(8.3050, -62.7150)),
+      PlaceSuggestion(displayName: 'Los Olivos, Puerto Ordaz, Bolívar', location: LatLng(8.2910, -62.7230)),
+      PlaceSuggestion(displayName: 'Villa Alianza, Puerto Ordaz, Bolívar', location: LatLng(8.3120, -62.7050)),
+      PlaceSuggestion(displayName: 'San Félix, Ciudad Guayana, Bolívar', location: LatLng(8.3540, -62.6320)),
+      PlaceSuggestion(displayName: 'Avenida Guayana, Puerto Ordaz, Bolívar', location: LatLng(8.3131, -62.7270)),
+      PlaceSuggestion(displayName: 'Avenida Angosturita, Puerto Ordaz, Bolívar', location: LatLng(8.3150, -62.7100)),
+      PlaceSuggestion(displayName: 'Paseo Caroní, Puerto Ordaz, Bolívar', location: LatLng(8.2890, -62.7350)),
+      
+      // Caracas / Distrito Capital / Miranda
+      PlaceSuggestion(displayName: 'Caracas, Distrito Capital', location: LatLng(10.4806, -66.9036)),
+      PlaceSuggestion(displayName: 'Altamira, Chacao, Caracas', location: LatLng(10.4960, -66.8530)),
+      PlaceSuggestion(displayName: 'Las Mercedes, Baruta, Caracas', location: LatLng(10.4810, -66.8620)),
+      PlaceSuggestion(displayName: 'Plaza Venezuela, Caracas', location: LatLng(10.4980, -66.8850)),
+      PlaceSuggestion(displayName: 'Sabana Grande, Caracas', location: LatLng(10.4950, -66.8780)),
+      PlaceSuggestion(displayName: 'Chacao, Miranda, Caracas', location: LatLng(10.4920, -66.8560)),
+      PlaceSuggestion(displayName: 'El Recreo, Caracas', location: LatLng(10.4930, -66.8810)),
+      PlaceSuggestion(displayName: 'Catia, Sucre, Caracas', location: LatLng(10.5210, -66.9422)),
+      PlaceSuggestion(displayName: 'El Valle, Caracas', location: LatLng(10.4610, -66.9080)),
+      PlaceSuggestion(displayName: 'Petare, Sucre, Miranda', location: LatLng(10.4780, -66.8150)),
+
+      // Other main cities
+      PlaceSuggestion(displayName: 'Valencia, Carabobo', location: LatLng(10.1620, -68.0077)),
+      PlaceSuggestion(displayName: 'Maracay, Aragua', location: LatLng(10.2469, -67.5958)),
+      PlaceSuggestion(displayName: 'Maracaibo, Zulia', location: LatLng(10.6427, -71.6125)),
+      PlaceSuggestion(displayName: 'Barquisimeto, Lara', location: LatLng(10.0678, -69.3474)),
+      PlaceSuggestion(displayName: 'Lechería, Anzoátegui', location: LatLng(10.1980, -64.6930)),
+      PlaceSuggestion(displayName: 'Barcelona, Anzoátegui', location: LatLng(10.1360, -64.6860)),
+      PlaceSuggestion(displayName: 'Maturín, Monagas', location: LatLng(9.7457, -63.1832)),
+      PlaceSuggestion(displayName: 'Mérida, Estado Mérida', location: LatLng(8.5983, -71.1449)),
+      PlaceSuggestion(displayName: 'Porlamar, Nueva Esparta', location: LatLng(10.9577, -63.8697)),
+    ];
+
+    return localDb.where((p) {
+      final name = p.displayName.toLowerCase();
+      return name.contains(q);
+    }).toList();
+  }
+
+  static Future<List<PlaceSuggestion>> searchPlaces(String query) async {
+    final cleanQuery = query.trim();
+    if (cleanQuery.length < 2) return [];
+
+    final suggestions = <PlaceSuggestion>[];
+
     try {
+      final qParam = cleanQuery.toLowerCase().contains('venezuela')
+          ? cleanQuery
+          : '$cleanQuery, Venezuela';
+
       final uri = Uri.parse(_baseUrl).replace(queryParameters: {
-        'q': query,
+        'q': qParam,
         'format': 'jsonv2',
-        'limit': '6',
-        'countrycodes': countryCode,
-        'addressdetails': '0',
+        'limit': '8',
+        'addressdetails': '1',
       });
 
       final response = await http
           .get(
             uri,
             headers: {
-              'User-Agent': 'AquaFlowApp/1.0 (contacto@aquaflow.com)',
+              'User-Agent':
+                  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AquaFlowApp/1.0',
+              'Accept-Language': 'es-VE,es;q=0.9',
             },
           )
-          .timeout(const Duration(seconds: 6));
+          .timeout(const Duration(seconds: 5));
 
-      if (response.statusCode != 200) return [];
-
-      final List<dynamic> results = jsonDecode(response.body);
-      return results.map((r) {
-        final lat = double.tryParse(r['lat']?.toString() ?? '') ?? 0.0;
-        final lon = double.tryParse(r['lon']?.toString() ?? '') ?? 0.0;
-        final name = formatShortAddress(r['display_name'] as String? ?? query);
-        return PlaceSuggestion(
-          displayName: name,
-          location: LatLng(lat, lon),
-        );
-      }).toList();
+      if (response.statusCode == 200) {
+        final List<dynamic> results = jsonDecode(response.body);
+        for (var r in results) {
+          final lat = double.tryParse(r['lat']?.toString() ?? '') ?? 0.0;
+          final lon = double.tryParse(r['lon']?.toString() ?? '') ?? 0.0;
+          final rawName = r['display_name'] as String? ?? cleanQuery;
+          final name = formatShortAddress(rawName);
+          if (lat != 0.0 && lon != 0.0) {
+            suggestions.add(PlaceSuggestion(
+              displayName: name,
+              location: LatLng(lat, lon),
+            ));
+          }
+        }
+      }
     } catch (e) {
       debugPrint('Geocoding search error: $e');
-      return [];
     }
+
+    // Integrar la base de datos local de respaldo para que NUNCA quede vacío
+    final localMatches = getLocalPlaceSuggestions(cleanQuery);
+    for (var match in localMatches) {
+      if (!suggestions.any((s) =>
+          s.displayName.toLowerCase() == match.displayName.toLowerCase())) {
+        suggestions.add(match);
+      }
+    }
+
+    return suggestions;
   }
 
   /// Geocodificación inversa: convierte coordenadas LatLng a una dirección corta legible
@@ -128,10 +194,12 @@ class GeocodingService {
           .get(
             uri,
             headers: {
-              'User-Agent': 'AquaFlowApp/1.0 (contacto@aquaflow.com)',
+              'User-Agent':
+                  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AquaFlowApp/1.0',
+              'Accept-Language': 'es-VE,es;q=0.9',
             },
           )
-          .timeout(const Duration(seconds: 6));
+          .timeout(const Duration(seconds: 5));
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = jsonDecode(response.body);

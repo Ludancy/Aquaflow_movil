@@ -127,11 +127,11 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
 
   void _onSearchChanged(String query) {
     _searchDebounce?.cancel();
-    if (query.trim().length < 3) {
+    if (query.trim().length < 2) {
       setState(() => _searchResults = []);
       return;
     }
-    _searchDebounce = Timer(const Duration(milliseconds: 500), () async {
+    _searchDebounce = Timer(const Duration(milliseconds: 300), () async {
       setState(() => _isSearching = true);
       final results = await GeocodingService.searchPlaces(query);
       if (!mounted) return;
