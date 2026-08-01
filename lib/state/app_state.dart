@@ -404,9 +404,6 @@ class AppState extends ChangeNotifier {
         orElse: () => backendTarifas.first,
       );
       activeTarifaId = matching['id_tarifa'];
-      if (matching['precio_base'] != null) {
-        selectedPrice = (matching['precio_base'] as num).toDouble() + 2.0;
-      }
     }
     notifyListeners();
   }
@@ -566,27 +563,14 @@ class AppState extends ChangeNotifier {
     if (coords == null) return;
 
     final cached = GeocodingService.getCachedAddress(coords);
-    if (cached != null && cached.isNotEmpty) {
-      if (order.address.contains('(') ||
-          order.address.contains('Ubicación') ||
-          order.address == coordsStr ||
-          order.address == 'Cargando ubicación...' ||
-          order.address.isEmpty) {
-        order.address = cached;
-      }
-      return;
+    if (cached != null && cached.isNotEmpty && !cached.startsWith('Ubicación')) {
+      order.address = cached;
     }
 
     GeocodingService.reverseGeocode(coords).then((resolved) {
       if (resolved != null && resolved.isNotEmpty) {
-        if (order.address.contains('(') ||
-            order.address.contains('Ubicación') ||
-            order.address == coordsStr ||
-            order.address == 'Cargando ubicación...' ||
-            order.address.isEmpty) {
-          order.address = resolved;
-          notifyListeners();
-        }
+        order.address = resolved;
+        notifyListeners();
       }
     });
   }
