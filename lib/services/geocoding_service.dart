@@ -25,8 +25,8 @@ class GeocodingService {
         .map((s) => s.trim())
         .where((s) => s.isNotEmpty && s.toLowerCase() != 'venezuela')
         .toList();
-    if (parts.length <= 2) return fullAddress;
-    return '${parts[0]}, ${parts[1]}';
+    if (parts.length <= 3) return parts.join(', ');
+    return '${parts[0]}, ${parts[1]}, ${parts[2]}';
   }
 
   static String getFallbackRegionAddress(LatLng location) {
@@ -72,39 +72,97 @@ class GeocodingService {
 
     final localDb = [
       // Puerto Ordaz / Ciudad Guayana / Bolívar
-      PlaceSuggestion(displayName: 'Alta Vista, Puerto Ordaz, Bolívar', location: LatLng(8.2975, -62.7118)),
-      PlaceSuggestion(displayName: 'Unare, Puerto Ordaz, Bolívar', location: LatLng(8.2831, -62.7482)),
-      PlaceSuggestion(displayName: 'Castillito, Puerto Ordaz, Bolívar', location: LatLng(8.3491, -62.6789)),
-      PlaceSuggestion(displayName: 'Chilemex, Puerto Ordaz, Bolívar', location: LatLng(8.3050, -62.7150)),
-      PlaceSuggestion(displayName: 'Los Olivos, Puerto Ordaz, Bolívar', location: LatLng(8.2910, -62.7230)),
-      PlaceSuggestion(displayName: 'Villa Alianza, Puerto Ordaz, Bolívar', location: LatLng(8.3120, -62.7050)),
-      PlaceSuggestion(displayName: 'San Félix, Ciudad Guayana, Bolívar', location: LatLng(8.3540, -62.6320)),
-      PlaceSuggestion(displayName: 'Avenida Guayana, Puerto Ordaz, Bolívar', location: LatLng(8.3131, -62.7270)),
-      PlaceSuggestion(displayName: 'Avenida Angosturita, Puerto Ordaz, Bolívar', location: LatLng(8.3150, -62.7100)),
-      PlaceSuggestion(displayName: 'Paseo Caroní, Puerto Ordaz, Bolívar', location: LatLng(8.2890, -62.7350)),
-      
+      PlaceSuggestion(
+          displayName: 'Alta Vista, Puerto Ordaz, Bolívar',
+          location: LatLng(8.2975, -62.7118)),
+      PlaceSuggestion(
+          displayName: 'Unare, Puerto Ordaz, Bolívar',
+          location: LatLng(8.2831, -62.7482)),
+      PlaceSuggestion(
+          displayName: 'Castillito, Puerto Ordaz, Bolívar',
+          location: LatLng(8.3491, -62.6789)),
+      PlaceSuggestion(
+          displayName: 'Chilemex, Puerto Ordaz, Bolívar',
+          location: LatLng(8.3050, -62.7150)),
+      PlaceSuggestion(
+          displayName: 'Los Olivos, Puerto Ordaz, Bolívar',
+          location: LatLng(8.2910, -62.7230)),
+      PlaceSuggestion(
+          displayName: 'Villa Alianza, Puerto Ordaz, Bolívar',
+          location: LatLng(8.3120, -62.7050)),
+      PlaceSuggestion(
+          displayName: 'San Félix, Ciudad Guayana, Bolívar',
+          location: LatLng(8.3540, -62.6320)),
+      PlaceSuggestion(
+          displayName: 'Avenida Guayana, Puerto Ordaz, Bolívar',
+          location: LatLng(8.3131, -62.7270)),
+      PlaceSuggestion(
+          displayName: 'Avenida Angosturita, Puerto Ordaz, Bolívar',
+          location: LatLng(8.3150, -62.7100)),
+      PlaceSuggestion(
+          displayName: 'Paseo Caroní, Puerto Ordaz, Bolívar',
+          location: LatLng(8.2890, -62.7350)),
+
       // Caracas / Distrito Capital / Miranda
-      PlaceSuggestion(displayName: 'Caracas, Distrito Capital', location: LatLng(10.4806, -66.9036)),
-      PlaceSuggestion(displayName: 'Altamira, Chacao, Caracas', location: LatLng(10.4960, -66.8530)),
-      PlaceSuggestion(displayName: 'Las Mercedes, Baruta, Caracas', location: LatLng(10.4810, -66.8620)),
-      PlaceSuggestion(displayName: 'Plaza Venezuela, Caracas', location: LatLng(10.4980, -66.8850)),
-      PlaceSuggestion(displayName: 'Sabana Grande, Caracas', location: LatLng(10.4950, -66.8780)),
-      PlaceSuggestion(displayName: 'Chacao, Miranda, Caracas', location: LatLng(10.4920, -66.8560)),
-      PlaceSuggestion(displayName: 'El Recreo, Caracas', location: LatLng(10.4930, -66.8810)),
-      PlaceSuggestion(displayName: 'Catia, Sucre, Caracas', location: LatLng(10.5210, -66.9422)),
-      PlaceSuggestion(displayName: 'El Valle, Caracas', location: LatLng(10.4610, -66.9080)),
-      PlaceSuggestion(displayName: 'Petare, Sucre, Miranda', location: LatLng(10.4780, -66.8150)),
+      PlaceSuggestion(
+          displayName: 'Caracas, Distrito Capital',
+          location: LatLng(10.4806, -66.9036)),
+      PlaceSuggestion(
+          displayName: 'Altamira, Chacao, Caracas',
+          location: LatLng(10.4960, -66.8530)),
+      PlaceSuggestion(
+          displayName: 'Las Mercedes, Baruta, Caracas',
+          location: LatLng(10.4810, -66.8620)),
+      PlaceSuggestion(
+          displayName: 'Plaza Venezuela, Caracas',
+          location: LatLng(10.4980, -66.8850)),
+      PlaceSuggestion(
+          displayName: 'Sabana Grande, Caracas',
+          location: LatLng(10.4950, -66.8780)),
+      PlaceSuggestion(
+          displayName: 'Chacao, Miranda, Caracas',
+          location: LatLng(10.4920, -66.8560)),
+      PlaceSuggestion(
+          displayName: 'El Recreo, Caracas',
+          location: LatLng(10.4930, -66.8810)),
+      PlaceSuggestion(
+          displayName: 'Catia, Sucre, Caracas',
+          location: LatLng(10.5210, -66.9422)),
+      PlaceSuggestion(
+          displayName: 'El Valle, Caracas',
+          location: LatLng(10.4610, -66.9080)),
+      PlaceSuggestion(
+          displayName: 'Petare, Sucre, Miranda',
+          location: LatLng(10.4780, -66.8150)),
 
       // Other main cities
-      PlaceSuggestion(displayName: 'Valencia, Carabobo', location: LatLng(10.1620, -68.0077)),
-      PlaceSuggestion(displayName: 'Maracay, Aragua', location: LatLng(10.2469, -67.5958)),
-      PlaceSuggestion(displayName: 'Maracaibo, Zulia', location: LatLng(10.6427, -71.6125)),
-      PlaceSuggestion(displayName: 'Barquisimeto, Lara', location: LatLng(10.0678, -69.3474)),
-      PlaceSuggestion(displayName: 'Lechería, Anzoátegui', location: LatLng(10.1980, -64.6930)),
-      PlaceSuggestion(displayName: 'Barcelona, Anzoátegui', location: LatLng(10.1360, -64.6860)),
-      PlaceSuggestion(displayName: 'Maturín, Monagas', location: LatLng(9.7457, -63.1832)),
-      PlaceSuggestion(displayName: 'Mérida, Estado Mérida', location: LatLng(8.5983, -71.1449)),
-      PlaceSuggestion(displayName: 'Porlamar, Nueva Esparta', location: LatLng(10.9577, -63.8697)),
+      PlaceSuggestion(
+          displayName: 'Valencia, Carabobo',
+          location: LatLng(10.1620, -68.0077)),
+      PlaceSuggestion(
+          displayName: 'Maracay, Aragua',
+          location: LatLng(10.2469, -67.5958)),
+      PlaceSuggestion(
+          displayName: 'Maracaibo, Zulia',
+          location: LatLng(10.6427, -71.6125)),
+      PlaceSuggestion(
+          displayName: 'Barquisimeto, Lara',
+          location: LatLng(10.0678, -69.3474)),
+      PlaceSuggestion(
+          displayName: 'Lechería, Anzoátegui',
+          location: LatLng(10.1980, -64.6930)),
+      PlaceSuggestion(
+          displayName: 'Barcelona, Anzoátegui',
+          location: LatLng(10.1360, -64.6860)),
+      PlaceSuggestion(
+          displayName: 'Maturín, Monagas',
+          location: LatLng(9.7457, -63.1832)),
+      PlaceSuggestion(
+          displayName: 'Mérida, Estado Mérida',
+          location: LatLng(8.5983, -71.1449)),
+      PlaceSuggestion(
+          displayName: 'Porlamar, Nueva Esparta',
+          location: LatLng(10.9577, -63.8697)),
     ];
 
     return localDb.where((p) {
@@ -140,7 +198,7 @@ class GeocodingService {
               'Accept-Language': 'es-VE,es;q=0.9',
             },
           )
-          .timeout(const Duration(seconds: 5));
+          .timeout(const Duration(seconds: 8));
 
       if (response.statusCode == 200) {
         final List<dynamic> results = jsonDecode(response.body);
@@ -161,7 +219,6 @@ class GeocodingService {
       debugPrint('Geocoding search error: $e');
     }
 
-    // Integrar la base de datos local de respaldo para que NUNCA quede vacío
     final localMatches = getLocalPlaceSuggestions(cleanQuery);
     for (var match in localMatches) {
       if (!suggestions.any((s) =>
@@ -173,7 +230,7 @@ class GeocodingService {
     return suggestions;
   }
 
-  /// Geocodificación inversa: convierte coordenadas LatLng a una dirección corta legible
+  /// Geocodificación inversa detallada: convierte LatLng a Calle, Sector y Ciudad
   static Future<String?> reverseGeocode(LatLng location) async {
     final cacheKey =
         '${location.latitude.toStringAsFixed(4)},${location.longitude.toStringAsFixed(4)}';
@@ -199,35 +256,46 @@ class GeocodingService {
               'Accept-Language': 'es-VE,es;q=0.9',
             },
           )
-          .timeout(const Duration(seconds: 5));
+          .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = jsonDecode(response.body);
 
         if (data['address'] != null) {
           final addr = data['address'] as Map<String, dynamic>;
+          final houseNum = addr['house_number'] ?? addr['building'];
           final road = addr['road'] ??
               addr['pedestrian'] ??
-              addr['suburb'] ??
+              addr['residential'] ??
+              addr['footway'] ??
+              addr['path'] ??
+              addr['amenity'];
+          final suburb = addr['suburb'] ??
               addr['neighbourhood'] ??
-              addr['residential'];
+              addr['quarter'] ??
+              addr['city_district'];
           final city = addr['city'] ??
               addr['town'] ??
-              addr['city_district'] ??
+              addr['village'] ??
+              addr['municipality'] ??
               addr['county'] ??
               addr['state'];
-          if (road != null && city != null) {
-            final res = '$road, $city';
-            _reverseCache[cacheKey] = res;
-            return res;
-          } else if (road != null) {
-            final res = road.toString();
-            _reverseCache[cacheKey] = res;
-            return res;
-          } else if (city != null) {
-            final res = city.toString();
-            _reverseCache[cacheKey] = res;
-            return res;
+
+          final parts = <String>[];
+          if (road != null) {
+            if (houseNum != null) {
+              parts.add('$road #$houseNum');
+            } else {
+              parts.add(road.toString());
+            }
+          }
+          if (suburb != null) parts.add(suburb.toString());
+          if (city != null) parts.add(city.toString());
+
+          if (parts.isNotEmpty) {
+            final detailed = parts.join(', ');
+            _reverseCache[cacheKey] = detailed;
+            return detailed;
           }
         }
 
@@ -250,6 +318,6 @@ class GeocodingService {
   static String? getCachedAddress(LatLng location) {
     final cacheKey =
         '${location.latitude.toStringAsFixed(4)},${location.longitude.toStringAsFixed(4)}';
-    return _reverseCache[cacheKey] ?? getFallbackRegionAddress(location);
+    return _reverseCache[cacheKey];
   }
 }
