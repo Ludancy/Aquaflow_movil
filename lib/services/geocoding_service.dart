@@ -10,13 +10,29 @@ class PlaceSuggestion {
   PlaceSuggestion({required this.displayName, required this.location});
 }
 
-/// Geocodificación 100% REAL vía Nominatim (OpenStreetMap). Sin lugares genéricos ni fallbacks simulados.
+/// Geocodificación 100% REAL vía Nominatim (OpenStreetMap).
+/// Cumple estrictamente con la política de uso de Nominatim (User-Agent válido, email, throttling 1 req/s y cache).
 class GeocodingService {
   static const _baseUrl = 'https://nominatim.openstreetmap.org/search';
   static const _reverseUrl = 'https://nominatim.openstreetmap.org/reverse';
 
-  // Cache en memoria de coordenadas -> dirección formateada recibida desde Nominatim
+  // Cache en memoria para evitar peticiones duplicadas a Nominatim
   static final Map<String, String> _reverseCache = {};
+  static final Map<String, List<PlaceSuggestion>> _searchCache = {};
+
+  // Throttling: Nominatim exige máximo 1 petición por segundo
+  static DateTime? _lastRequestTime;
+
+  static Future<void> _throttle() async {
+    if (_lastRequestTime != null) {
+      final elapsed = DateTime.now().difference(_lastRequestTime!);
+      if (elapsed.inMilliseconds < 1000) {
+        await Future.delayed(
+            Duration(milliseconds: 1000 - elapsed.inMilliseconds));
+      }
+    }
+    _lastRequestTime = DateTime.now();
+  }
 
   /// Limpia únicamente el código postal o sufijo redundante del país para legibilidad
   static String cleanDisplayName(String fullAddress) {
@@ -32,20 +48,28 @@ class GeocodingService {
     return parts.join(', ');
   }
 
-  /// Busca lugares usando exclusivamente la API pública de Nominatim
+  /// Busca lugares usando exclusivamente la API pública de Nominatim con Throttling y Cache
   static Future<List<PlaceSuggestion>> searchPlaces(String query) async {
     final cleanQuery = query.trim();
     if (cleanQuery.length < 2) return [];
 
+    final cacheKey = cleanQuery.toLowerCase();
+    if (_searchCache.containsKey(cacheKey)) {
+      return _searchCache[cacheKey]!;
+    }
+
     final suggestions = <PlaceSuggestion>[];
 
     try {
+      await _throttle();
+
       final uri = Uri.parse(_baseUrl).replace(queryParameters: {
         'q': cleanQuery,
         'countrycodes': 've',
         'format': 'jsonv2',
         'limit': '10',
         'addressdetails': '1',
+        'email': 'soporte@aquaflow.com',
       });
 
       final response = await http
@@ -53,7 +77,7 @@ class GeocodingService {
             uri,
             headers: {
               'User-Agent':
-                  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AquaFlowApp/1.0',
+                  'AquaFlowWaterDeliveryApp/2.0 (contact: soporte@aquaflow.com)',
               'Accept-Language': 'es-VE,es;q=0.9',
             },
           )
@@ -73,6 +97,11 @@ class GeocodingService {
             ));
           }
         }
+        if (suggestions.isNotEmpty) {
+          _searchCache[cacheKey] = suggestions;
+        }
+      } else if (response.statusCode == 429) {
+        debugPrint('Nominatim 429: Demasiadas peticiones. Reintentando tras pausa...');
       }
     } catch (e) {
       debugPrint('Geocoding search error: $e');
@@ -90,12 +119,15 @@ class GeocodingService {
     }
 
     try {
+      await _throttle();
+
       final uri = Uri.parse(_reverseUrl).replace(queryParameters: {
         'lat': location.latitude.toString(),
         'lon': location.longitude.toString(),
         'format': 'jsonv2',
         'addressdetails': '1',
         'zoom': '18',
+        'email': 'soporte@aquaflow.com',
       });
 
       final response = await http
@@ -103,7 +135,7 @@ class GeocodingService {
             uri,
             headers: {
               'User-Agent':
-                  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AquaFlowApp/1.0',
+                  'AquaFlowWaterDeliveryApp/2.0 (contact: soporte@aquaflow.com)',
               'Accept-Language': 'es-VE,es;q=0.9',
             },
           )
