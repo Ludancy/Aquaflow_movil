@@ -1,10 +1,4 @@
-enum OrderStatus {
-  requested,
-  accepted,
-  inTransit,
-  delivered,
-  cancelled
-}
+enum OrderStatus { requested, accepted, inTransit, delivered, cancelled }
 
 class WaterOrder {
   final String id;
@@ -14,8 +8,9 @@ class WaterOrder {
   final String address;
   final String paymentMethod;
   OrderStatus status;
-  
+
   // Driver Details (only set if status is accepted/inTransit/delivered)
+  String? driverId;
   String? driverName;
   String? driverPhone;
   String? driverPlate;
@@ -28,6 +23,7 @@ class WaterOrder {
     required this.address,
     required this.paymentMethod,
     required this.status,
+    this.driverId,
     this.driverName,
     this.driverPhone,
     this.driverPlate,

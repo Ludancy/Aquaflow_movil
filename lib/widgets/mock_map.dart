@@ -9,6 +9,7 @@ class RealMapWidget extends StatefulWidget {
   final bool showRoute;
   final double zoom;
   final MapController? controller;
+  final bool isDriverView;
 
   const RealMapWidget({
     Key? key,
@@ -17,6 +18,7 @@ class RealMapWidget extends StatefulWidget {
     this.showRoute = true,
     this.zoom = 14.0,
     this.controller,
+    this.isDriverView = false,
   }) : super(key: key);
 
   @override
@@ -37,11 +39,16 @@ class _RealMapWidgetState extends State<RealMapWidget> {
   @override
   void didUpdateWidget(covariant RealMapWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
-    final newLoc = widget.clientLocation;
-    if (newLoc != null && newLoc != oldWidget.clientLocation) {
-      // El buscador (u otra fuente) movió la ubicación de referencia: recentrar el mapa.
+    final focusLoc = widget.isDriverView
+        ? (widget.driverLocation ?? widget.clientLocation)
+        : widget.clientLocation;
+    final oldFocusLoc = widget.isDriverView
+        ? (oldWidget.driverLocation ?? oldWidget.clientLocation)
+        : oldWidget.clientLocation;
+
+    if (focusLoc != null && focusLoc != oldFocusLoc) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _mapController.move(newLoc, _mapController.camera.zoom);
+        _mapController.move(focusLoc, _mapController.camera.zoom);
       });
     }
   }
@@ -56,9 +63,11 @@ class _RealMapWidgetState extends State<RealMapWidget> {
 
   @override
   Widget build(BuildContext context) {
-    // Coordinates default: Caracas, Venezuela (10.4806, -66.9036)
+    // Coordenadas por defecto: Caracas, Venezuela (10.4806, -66.9036)
     final clientPos = widget.clientLocation ?? const LatLng(10.4806, -66.9036);
-    final driverPos = widget.driverLocation ?? LatLng(clientPos.latitude + 0.012, clientPos.longitude - 0.015);
+    final driverPos = widget.driverLocation ??
+        LatLng(clientPos.latitude + 0.012, clientPos.longitude - 0.015);
+    final initialPos = widget.isDriverView ? driverPos : clientPos;
 
     final routePoints = [
       driverPos,
@@ -70,22 +79,22 @@ class _RealMapWidgetState extends State<RealMapWidget> {
     return FlutterMap(
       mapController: _mapController,
       options: MapOptions(
-        initialCenter: clientPos,
+        initialCenter: initialPos,
         initialZoom: widget.zoom,
         interactionOptions: const InteractionOptions(
           flags: InteractiveFlag.all,
         ),
       ),
       children: [
-        // CARTO Dark Matter — tiles oscuras gratuitas (sin API key), en sintonía con
-        // el tema navy/azul de la app en vez del blanco de OSM estándar.
+        // CARTO Dark Matter — tiles oscuras en sintonía con el tema de la app
         TileLayer(
-          urlTemplate: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+          urlTemplate:
+              'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
           subdomains: const ['a', 'b', 'c', 'd'],
           userAgentPackageName: 'com.aguaexpress.aguaexpress',
         ),
 
-        // Atribución requerida por CARTO/OpenStreetMap, con estilo acorde al tema oscuro
+        // Atribución requerida por CARTO/OpenStreetMap
         RichAttributionWidget(
           alignment: AttributionAlignment.bottomLeft,
           popupInitialDisplayDuration: const Duration(seconds: 3),
@@ -97,7 +106,7 @@ class _RealMapWidgetState extends State<RealMapWidget> {
           ],
         ),
 
-        // Route Polyline
+        // Línea de Ruta de Navegación
         if (widget.showRoute)
           PolylineLayer(
             polylines: [
@@ -109,54 +118,118 @@ class _RealMapWidgetState extends State<RealMapWidget> {
             ],
           ),
 
-        // Markers
+        // Marcadores de Ubicación
         MarkerLayer(
           markers: [
-            // Client Location Marker
+            // Marcador de Ubicación del Cliente (Persona / Usuario)
             Marker(
               point: clientPos,
-              width: 50,
-              height: 50,
-              child: Column(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: AppTheme.cardDark,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: AppTheme.primaryBlue, width: 2),
-                    ),
-                    child: const Icon(
-                      Icons.home,
-                      color: AppTheme.primaryBlue,
-                      size: 20,
-                    ),
+              width: 60,
+              height: 60,
+              child: _buildClientPersonMarker(),
+            ),
+
+            // Marcador de Ubicación del Cisternero (Camión / Conductor)
+            Marker(
+              point: driverPos,
+              width: 60,
+              height: 60,
+              child: _buildDriverTruckMarker(),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  /// Marcador resaltante de ubicación para el Cliente (Persona con halo azul brillante)
+  Widget _buildClientPersonMarker() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Stack(
+          alignment: Alignment.center,
+          children: [
+            // Aura de pulso translúcida exterior
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: AppTheme.primaryBlue.withOpacity(0.28),
+                shape: BoxShape.circle,
+              ),
+            ),
+            // Círculo brillante con icono distintivo de Persona / Usuario
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: AppTheme.primaryBlue,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: AppTheme.primaryBlue.withOpacity(0.6),
+                    blurRadius: 10,
+                    spreadRadius: 2,
                   ),
                 ],
               ),
+              child: Container(
+                margin: const EdgeInsets.all(2),
+                decoration: const BoxDecoration(
+                  color: AppTheme.cardDark,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.person_pin_circle,
+                  color: AppTheme.primaryBlue,
+                  size: 20,
+                ),
+              ),
             ),
+          ],
+        ),
+      ],
+    );
+  }
 
-            // Driver Cistern Truck Marker
-            Marker(
-              point: driverPos,
-              width: 50,
-              height: 50,
-              child: Column(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF00FFC2),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.black, width: 2),
-                    ),
-                    child: const Icon(
-                      Icons.local_shipping,
-                      color: Colors.black,
-                      size: 20,
-                    ),
+  /// Marcador de Ubicación para el Cisternero (Camión / Conductor con halo neón esmeralda)
+  Widget _buildDriverTruckMarker() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Stack(
+          alignment: Alignment.center,
+          children: [
+            // Aura exterior esmeralda neón
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: const Color(0xFF00FFC2).withOpacity(0.28),
+                shape: BoxShape.circle,
+              ),
+            ),
+            // Círculo neón con icono de camión de cisterna
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: const Color(0xFF00FFC2),
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.black, width: 1.5),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF00FFC2).withOpacity(0.6),
+                    blurRadius: 10,
+                    spreadRadius: 2,
                   ),
                 ],
+              ),
+              child: const Icon(
+                Icons.local_shipping,
+                color: Colors.black,
+                size: 18,
               ),
             ),
           ],
@@ -166,5 +239,5 @@ class _RealMapWidgetState extends State<RealMapWidget> {
   }
 }
 
-// Alias for backwards compatibility with existing screens
+// Alias para compatibilidad con todas las pantallas de la aplicación
 typedef MockMapWidget = RealMapWidget;

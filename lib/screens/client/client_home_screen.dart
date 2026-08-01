@@ -22,22 +22,58 @@ class ClientHomeScreen extends StatefulWidget {
 
 class _ClientHomeScreenState extends State<ClientHomeScreen> {
   int _selectedIndex = 0;
+  bool _isServicePanelExpanded = true;
 
   // Options matching user screenshot
   final List<Map<String, dynamic>> _tankOptions = [
-    {'liters': 1000, 'basePrice': 20.0, 'shippingPrice': 5.0, 'label': '1000L', 'isPopular': false},
-    {'liters': 2000, 'basePrice': 40.0, 'shippingPrice': 5.0, 'label': '2000L', 'isPopular': true},
-    {'liters': 5000, 'basePrice': 80.0, 'shippingPrice': 5.0, 'label': '5000L', 'isPopular': false},
+    {
+      'liters': 1000,
+      'basePrice': 20.0,
+      'shippingPrice': 2.0,
+      'label': '1000L',
+      'isPopular': false,
+    },
+    {
+      'liters': 2000,
+      'basePrice': 40.0,
+      'shippingPrice': 2.0,
+      'label': '2000L',
+      'isPopular': true,
+    },
+    {
+      'liters': 5000,
+      'basePrice': 80.0,
+      'shippingPrice': 2.0,
+      'label': '5000L',
+      'isPopular': false,
+    },
   ];
 
   // Address search / autocomplete (Nominatim)
   final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
   List<PlaceSuggestion> _searchResults = [];
   Timer? _searchDebounce;
   bool _isSearching = false;
 
   @override
+  void initState() {
+    super.initState();
+    _searchFocusNode.addListener(_onSearchFocusChange);
+  }
+
+  void _onSearchFocusChange() {
+    if (_searchFocusNode.hasFocus) {
+      setState(() {
+        _isServicePanelExpanded = false;
+      });
+    }
+  }
+
+  @override
   void dispose() {
+    _searchFocusNode.removeListener(_onSearchFocusChange);
+    _searchFocusNode.dispose();
     _searchDebounce?.cancel();
     _searchController.dispose();
     super.dispose();
@@ -61,7 +97,10 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
   }
 
   void _selectPlace(PlaceSuggestion place) {
-    context.read<AppState>().setDeliveryLocation(place.displayName, place.location);
+    context.read<AppState>().setDeliveryLocation(
+      place.displayName,
+      place.location,
+    );
     setState(() {
       _searchResults = [];
       _searchController.text = place.displayName;
@@ -70,7 +109,9 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
   }
 
   bool _isCurrentAddressFavorite(AppState appState) {
-    return appState.userAddresses.any((a) => a['direccion_exacta'] == _searchController.text);
+    return appState.userAddresses.any(
+      (a) => a['direccion_exacta'] == _searchController.text,
+    );
   }
 
   void _showSaveFavoriteDialog(BuildContext context, AppState appState) {
@@ -83,23 +124,37 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppTheme.surfaceDark,
-        title: const Text('Guardar como favorita', style: TextStyle(color: AppTheme.textWhite)),
+        title: const Text(
+          'Guardar como favorita',
+          style: TextStyle(color: AppTheme.textWhite),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(address, style: const TextStyle(color: AppTheme.textMuted, fontSize: 12), maxLines: 2, overflow: TextOverflow.ellipsis),
+            Text(
+              address,
+              style: const TextStyle(color: AppTheme.textMuted, fontSize: 12),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
             const SizedBox(height: 12),
             TextField(
               controller: labelCtrl,
               autofocus: true,
               style: const TextStyle(color: AppTheme.textWhite, fontSize: 13),
-              decoration: const InputDecoration(hintText: 'Etiqueta (ej. Casa, Oficina)', hintStyle: TextStyle(color: AppTheme.textMuted)),
+              decoration: const InputDecoration(
+                hintText: 'Etiqueta (ej. Casa, Oficina)',
+                hintStyle: TextStyle(color: AppTheme.textMuted),
+              ),
             ),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancelar'),
+          ),
           ElevatedButton(
             onPressed: () async {
               if (labelCtrl.text.trim().isEmpty) return;
@@ -111,7 +166,9 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
               if (ctx.mounted) Navigator.pop(ctx);
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Dirección guardada en favoritos')),
+                  const SnackBar(
+                    content: Text('Dirección guardada en favoritos'),
+                  ),
                 );
               }
             },
@@ -126,7 +183,9 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
     showModalBottomSheet(
       context: context,
       backgroundColor: AppTheme.surfaceDark,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (ctx) {
         if (appState.userAddresses.isEmpty) {
           return const Padding(
@@ -143,13 +202,29 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
             shrinkWrap: true,
             padding: const EdgeInsets.symmetric(vertical: 12),
             itemCount: appState.userAddresses.length,
-            separatorBuilder: (_, __) => const Divider(height: 1, color: AppTheme.borderDark),
+            separatorBuilder: (_, __) =>
+                const Divider(height: 1, color: AppTheme.borderDark),
             itemBuilder: (context, index) {
               final addr = appState.userAddresses[index];
               return ListTile(
                 leading: const Icon(Icons.star, color: Colors.amber),
-                title: Text(addr['etiqueta'] ?? 'Dirección', style: const TextStyle(color: AppTheme.textWhite, fontWeight: FontWeight.bold, fontSize: 13)),
-                subtitle: Text(addr['direccion_exacta'] ?? '', style: const TextStyle(color: AppTheme.textMuted, fontSize: 11), maxLines: 2, overflow: TextOverflow.ellipsis),
+                title: Text(
+                  addr['etiqueta'] ?? 'Dirección',
+                  style: const TextStyle(
+                    color: AppTheme.textWhite,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                  ),
+                ),
+                subtitle: Text(
+                  addr['direccion_exacta'] ?? '',
+                  style: const TextStyle(
+                    color: AppTheme.textMuted,
+                    fontSize: 11,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
                 onTap: () {
                   final coordStr = (addr['coordenadas'] ?? '') as String;
                   final parts = coordStr.split(',');
@@ -157,7 +232,10 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                     final lat = double.tryParse(parts[0]);
                     final lng = double.tryParse(parts[1]);
                     if (lat != null && lng != null) {
-                      appState.setDeliveryLocation(addr['direccion_exacta'], LatLng(lat, lng));
+                      appState.setDeliveryLocation(
+                        addr['direccion_exacta'],
+                        LatLng(lat, lng),
+                      );
                     } else {
                       appState.setAddress(addr['direccion_exacta']);
                     }
@@ -197,10 +275,13 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
     return Theme(
       data: AppTheme.clientTheme,
       child: Scaffold(
+        resizeToAvoidBottomInset: false,
         backgroundColor: AppTheme.backgroundDark,
         bottomNavigationBar: Container(
           decoration: const BoxDecoration(
-            border: Border(top: BorderSide(color: AppTheme.borderDark, width: 1)),
+            border: Border(
+              top: BorderSide(color: AppTheme.borderDark, width: 1),
+            ),
           ),
           child: BottomNavigationBar(
             currentIndex: _selectedIndex,
@@ -213,7 +294,10 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
             backgroundColor: AppTheme.backgroundDark,
             selectedItemColor: AppTheme.primaryBlue,
             unselectedItemColor: AppTheme.textMuted,
-            selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+            selectedLabelStyle: const TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 11,
+            ),
             unselectedLabelStyle: const TextStyle(fontSize: 11),
             items: const [
               BottomNavigationBarItem(
@@ -246,7 +330,9 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
 
   Widget _buildHomeTab(BuildContext context, AppState appState) {
     // Current selected option values
-    final selectedOption = _tankOptions.firstWhere((opt) => opt['liters'] == appState.selectedLiters);
+    final selectedOption = _tankOptions.firstWhere(
+      (opt) => opt['liters'] == appState.selectedLiters,
+    );
     final double basePrice = selectedOption['basePrice'];
     final double shippingPrice = selectedOption['shippingPrice'];
 
@@ -254,7 +340,16 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
       children: [
         // Simulated map covers full background
         Positioned.fill(
-          child: MockMapWidget(showRoute: false, clientLocation: appState.deliveryCoords),
+          child: GestureDetector(
+            onTap: () {
+              FocusScope.of(context).unfocus();
+            },
+            behavior: HitTestBehavior.opaque,
+            child: MockMapWidget(
+              showRoute: false,
+              clientLocation: appState.deliveryCoords,
+            ),
+          ),
         ),
 
         // Custom Top Overlay HUD (Address banner)
@@ -271,7 +366,10 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
             ),
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [AppTheme.backgroundDark, AppTheme.backgroundDark.withOpacity(0.0)],
+                colors: [
+                  AppTheme.backgroundDark,
+                  AppTheme.backgroundDark.withOpacity(0.0),
+                ],
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
               ),
@@ -282,7 +380,11 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                 // Top row with address dropdown & Notification Icon
                 Row(
                   children: [
-                    const Icon(Icons.location_on, color: AppTheme.primaryBlue, size: 24),
+                    const Icon(
+                      Icons.location_on,
+                      color: AppTheme.primaryBlue,
+                      size: 24,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Column(
@@ -313,19 +415,25 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                                 ),
                               ),
                               const SizedBox(width: 4),
-                              const Icon(Icons.keyboard_arrow_down, color: AppTheme.textWhite, size: 18),
+                              const Icon(
+                                Icons.keyboard_arrow_down,
+                                color: AppTheme.textWhite,
+                                size: 18,
+                              ),
                             ],
                           ),
                         ],
                       ),
                     ),
-                    
+
                     // Notification Icon
                     GestureDetector(
                       onTap: () {
                         Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (context) => const NotificationsScreen()),
+                          MaterialPageRoute(
+                            builder: (context) => const NotificationsScreen(),
+                          ),
                         );
                       },
                       child: Stack(
@@ -337,7 +445,11 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                               color: AppTheme.cardDark,
                               shape: BoxShape.circle,
                             ),
-                            child: const Icon(Icons.notifications_none, color: AppTheme.textWhite, size: 20),
+                            child: const Icon(
+                              Icons.notifications_none,
+                              color: AppTheme.textWhite,
+                              size: 20,
+                            ),
                           ),
                           if (appState.unreadNotificationsCount > 0)
                             Positioned(
@@ -349,10 +461,17 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                                   color: AppTheme.error,
                                   shape: BoxShape.circle,
                                 ),
-                                constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                                constraints: const BoxConstraints(
+                                  minWidth: 16,
+                                  minHeight: 16,
+                                ),
                                 child: Text(
                                   '${appState.unreadNotificationsCount}',
-                                  style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                   textAlign: TextAlign.center,
                                 ),
                               ),
@@ -362,9 +481,9 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                     ),
                   ],
                 ),
-                
+
                 const SizedBox(height: 16),
-                
+
                 // Search Input Field
                 Container(
                   decoration: BoxDecoration(
@@ -374,50 +493,81 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                   ),
                   child: TextField(
                     controller: _searchController,
+                    focusNode: _searchFocusNode,
                     onChanged: _onSearchChanged,
-                    style: const TextStyle(color: AppTheme.textWhite, fontSize: 14),
+                    style: const TextStyle(
+                      color: AppTheme.textWhite,
+                      fontSize: 14,
+                    ),
                     decoration: InputDecoration(
                       hintText: 'Buscar nueva dirección...',
                       hintStyle: const TextStyle(color: AppTheme.textMuted),
-                      prefixIcon: const Icon(Icons.search, size: 20, color: AppTheme.textMuted),
+                      prefixIcon: const Icon(
+                        Icons.search,
+                        size: 20,
+                        color: AppTheme.textMuted,
+                      ),
                       suffixIcon: _isSearching
                           ? const Padding(
                               padding: EdgeInsets.all(14),
                               child: SizedBox(
                                 width: 16,
                                 height: 16,
-                                child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.primaryBlue),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: AppTheme.primaryBlue,
+                                ),
                               ),
                             )
                           : (_searchController.text.isNotEmpty
-                              ? Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    if (appState.deliveryCoords != null && _searchResults.isEmpty)
-                                      IconButton(
-                                        icon: Icon(
-                                          _isCurrentAddressFavorite(appState) ? Icons.star : Icons.star_border,
-                                          size: 20,
-                                          color: _isCurrentAddressFavorite(appState)
-                                              ? Colors.amber
-                                              : AppTheme.textMuted,
+                                ? Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      if (appState.deliveryCoords != null &&
+                                          _searchResults.isEmpty)
+                                        IconButton(
+                                          icon: Icon(
+                                            _isCurrentAddressFavorite(appState)
+                                                ? Icons.star
+                                                : Icons.star_border,
+                                            size: 20,
+                                            color:
+                                                _isCurrentAddressFavorite(
+                                                  appState,
+                                                )
+                                                ? Colors.amber
+                                                : AppTheme.textMuted,
+                                          ),
+                                          tooltip: 'Guardar como favorita',
+                                          onPressed:
+                                              _isCurrentAddressFavorite(
+                                                appState,
+                                              )
+                                              ? null
+                                              : () => _showSaveFavoriteDialog(
+                                                  context,
+                                                  appState,
+                                                ),
                                         ),
-                                        tooltip: 'Guardar como favorita',
-                                        onPressed: _isCurrentAddressFavorite(appState)
-                                            ? null
-                                            : () => _showSaveFavoriteDialog(context, appState),
+                                      IconButton(
+                                        icon: const Icon(
+                                          Icons.clear,
+                                          size: 18,
+                                          color: AppTheme.textMuted,
+                                        ),
+                                        onPressed: () {
+                                          _searchController.clear();
+                                          setState(() => _searchResults = []);
+                                          _searchFocusNode.unfocus();
+                                        },
                                       ),
-                                    IconButton(
-                                      icon: const Icon(Icons.clear, size: 18, color: AppTheme.textMuted),
-                                      onPressed: () {
-                                        _searchController.clear();
-                                        setState(() => _searchResults = []);
-                                      },
-                                    ),
-                                  ],
-                                )
-                              : null),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                    ],
+                                  )
+                                : null),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
                       filled: false,
                       border: InputBorder.none,
                       enabledBorder: InputBorder.none,
@@ -440,15 +590,23 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                       shrinkWrap: true,
                       padding: EdgeInsets.zero,
                       itemCount: _searchResults.length,
-                      separatorBuilder: (_, __) => const Divider(height: 1, color: AppTheme.borderDark),
+                      separatorBuilder: (_, __) =>
+                          const Divider(height: 1, color: AppTheme.borderDark),
                       itemBuilder: (context, index) {
                         final place = _searchResults[index];
                         return ListTile(
                           dense: true,
-                          leading: const Icon(Icons.location_on_outlined, color: AppTheme.primaryBlue, size: 20),
+                          leading: const Icon(
+                            Icons.location_on_outlined,
+                            color: AppTheme.primaryBlue,
+                            size: 20,
+                          ),
                           title: Text(
                             place.displayName,
-                            style: const TextStyle(color: AppTheme.textWhite, fontSize: 13),
+                            style: const TextStyle(
+                              color: AppTheme.textWhite,
+                              fontSize: 13,
+                            ),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -459,7 +617,7 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                   ),
 
                 const SizedBox(height: 12),
-                
+
                 // Row of Chips: Reordenar / Favoritos
                 Row(
                   children: [
@@ -493,12 +651,17 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                 onTap: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const ClientTrackingScreen()),
+                    MaterialPageRoute(
+                      builder: (context) => const ClientTrackingScreen(),
+                    ),
                   );
                 },
                 borderRadius: BorderRadius.circular(16),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
                   decoration: BoxDecoration(
                     color: AppTheme.primaryBlue,
                     borderRadius: BorderRadius.circular(16),
@@ -521,16 +684,27 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                           children: [
                             const Text(
                               'Pedido Activo en Curso',
-                              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
                             ),
                             Text(
                               'Estado: ${appState.activeOrder!.statusText}',
-                              style: const TextStyle(color: Color(0xFFE1F5FE), fontSize: 11),
+                              style: const TextStyle(
+                                color: Color(0xFFE1F5FE),
+                                fontSize: 11,
+                              ),
                             ),
                           ],
                         ),
                       ),
-                      const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 14),
+                      const Icon(
+                        Icons.arrow_forward_ios,
+                        color: Colors.white,
+                        size: 14,
+                      ),
                     ],
                   ),
                 ),
@@ -546,7 +720,9 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
           child: Container(
             decoration: BoxDecoration(
               color: AppTheme.cardDark,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(28),
+              ),
               border: Border.all(color: AppTheme.borderDark),
               boxShadow: [
                 BoxShadow(
@@ -556,215 +732,299 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                 ),
               ],
             ),
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Top drag handlebar
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade700,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                
-                // Panel Title & Pulsing ETA
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'Servicio de Cisterna',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.textWhite,
-                      ),
-                    ),
-                    Row(
-                      children: [
-                        Container(
-                          width: 8,
-                          height: 8,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFF00FF66), // Pulsing green dot
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        const Text(
-                          'LLEGA EN ~45 MIN',
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF00FF66),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                
-                // Tank Capacity Picker Title
-                const Text(
-                  'Capacidad del Tanque',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: AppTheme.textMuted,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                
-                // Liters Volume selection cards
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: _tankOptions.map((opt) {
-                    final isSelected = appState.selectedLiters == opt['liters'];
-                    return Expanded(
-                      child: GestureDetector(
-                        onTap: () {
-                          appState.selectLiters(opt['liters'], opt['basePrice'] + opt['shippingPrice']);
-                        },
+                // Top drag handlebar & Header (tap to toggle collapse/expand)
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () {
+                    setState(() {
+                      _isServicePanelExpanded = !_isServicePanelExpanded;
+                    });
+                  },
+                  child: Column(
+                    children: [
+                      Center(
                         child: Container(
-                          height: 84,
-                          margin: const EdgeInsets.symmetric(horizontal: 6),
+                          width: 40,
+                          height: 4,
+                          margin: const EdgeInsets.only(bottom: 12),
                           decoration: BoxDecoration(
-                            color: isSelected ? AppTheme.primaryBlue : const Color(0xFF111E2E),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: isSelected ? Colors.transparent : AppTheme.borderDark,
-                              width: 1.0,
-                            ),
+                            color: Colors.grey.shade700,
+                            borderRadius: BorderRadius.circular(2),
                           ),
-                          child: Stack(
-                            clipBehavior: Clip.none,
+                        ),
+                      ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
                             children: [
-                              Center(
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(
-                                      Icons.water_drop_outlined,
-                                      color: isSelected ? const Color(0xFF09121F) : AppTheme.textMuted,
-                                      size: 24,
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Text(
-                                      opt['label'],
-                                      style: TextStyle(
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.bold,
-                                        color: isSelected ? const Color(0xFF09121F) : AppTheme.textWhite,
-                                      ),
-                                    ),
-                                  ],
+                              const Text(
+                                'Servicio de Cisterna',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppTheme.textWhite,
                                 ),
                               ),
-                              
-                              // Popular Badge
-                              if (opt['isPopular'])
-                                Positioned(
-                                  top: 6,
-                                  right: 6,
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: isSelected 
-                                          ? const Color(0xFF0D1C2E).withOpacity(0.18) 
-                                          : AppTheme.primaryBlue,
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: Text(
-                                      'POPULAR',
-                                      style: TextStyle(
-                                        fontSize: 7,
-                                        fontWeight: FontWeight.bold,
-                                        color: isSelected ? const Color(0xFF09121F) : Colors.white,
+                              const SizedBox(width: 6),
+                              Icon(
+                                _isServicePanelExpanded
+                                    ? Icons.keyboard_arrow_down
+                                    : Icons.keyboard_arrow_up,
+                                color: AppTheme.primaryBlue,
+                                size: 22,
+                              ),
+                            ],
+                          ),
+                          Row(
+                            children: [
+                              Container(
+                                width: 8,
+                                height: 8,
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFF00FF66), // Pulsing green dot
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              const Text(
+                                'LLEGA EN ~45 MIN',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF00FF66),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Tank capacity picker, pricing breakdown, confirmation button inside AnimatedSize
+                AnimatedSize(
+                  duration: const Duration(milliseconds: 250),
+                  curve: Curves.easeInOut,
+                  alignment: Alignment.topCenter,
+                  child: !_isServicePanelExpanded
+                      ? const SizedBox(width: double.infinity, height: 4)
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            const SizedBox(height: 20),
+                            // Tank Capacity Picker Title
+                            const Text(
+                              'Capacidad del Tanque',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: AppTheme.textMuted,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+
+                            // Liters Volume selection cards
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: _tankOptions.map((opt) {
+                                final isSelected =
+                                    appState.selectedLiters == opt['liters'];
+                                return Expanded(
+                                  child: GestureDetector(
+                                    onTap: () {
+                                      appState.selectLiters(
+                                        opt['liters'],
+                                        opt['basePrice'] + opt['shippingPrice'],
+                                      );
+                                    },
+                                    child: Container(
+                                      height: 84,
+                                      margin: const EdgeInsets.symmetric(
+                                        horizontal: 6,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: isSelected
+                                            ? AppTheme.primaryBlue
+                                            : const Color(0xFF111E2E),
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                          color: isSelected
+                                              ? Colors.transparent
+                                              : AppTheme.borderDark,
+                                          width: 1.0,
+                                        ),
+                                      ),
+                                      child: Stack(
+                                        clipBehavior: Clip.none,
+                                        children: [
+                                          Center(
+                                            child: Column(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.center,
+                                              children: [
+                                                Icon(
+                                                  Icons.water_drop_outlined,
+                                                  color: isSelected
+                                                      ? const Color(0xFF09121F)
+                                                      : AppTheme.textMuted,
+                                                  size: 24,
+                                                ),
+                                                const SizedBox(height: 6),
+                                                Text(
+                                                  opt['label'],
+                                                  style: TextStyle(
+                                                    fontSize: 15,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: isSelected
+                                                        ? const Color(
+                                                            0xFF09121F,
+                                                          )
+                                                        : AppTheme.textWhite,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+
+                                          // Popular Badge
+                                          if (opt['isPopular'])
+                                            Positioned(
+                                              top: 6,
+                                              right: 6,
+                                              child: Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 5,
+                                                      vertical: 2,
+                                                    ),
+                                                decoration: BoxDecoration(
+                                                  color: isSelected
+                                                      ? const Color(
+                                                          0xFF0D1C2E,
+                                                        ).withOpacity(0.18)
+                                                      : AppTheme.primaryBlue,
+                                                  borderRadius:
+                                                      BorderRadius.circular(4),
+                                                ),
+                                                child: Text(
+                                                  'POPULAR',
+                                                  style: TextStyle(
+                                                    fontSize: 7,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: isSelected
+                                                        ? const Color(
+                                                            0xFF09121F,
+                                                          )
+                                                        : Colors.white,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                        ],
                                       ),
                                     ),
                                   ),
+                                );
+                              }).toList(),
+                            ),
+
+                            const SizedBox(height: 24),
+
+                            // Pricing Breakdown Box
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF0D1724),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(color: AppTheme.borderDark),
+                              ),
+                              child: Column(
+                                children: [
+                                  _buildCostRow(
+                                    'Costo base (${selectedOption['label']}):',
+                                    '\$${basePrice.toStringAsFixed(2)}',
+                                  ),
+                                  const SizedBox(height: 8),
+                                  _buildCostRow(
+                                    'Tarifa de envío:',
+                                    '\$${shippingPrice.toStringAsFixed(2)}',
+                                  ),
+                                  const Divider(
+                                    height: 24,
+                                    color: AppTheme.borderDark,
+                                  ),
+                                  _buildCostRow(
+                                    'Total Estimado',
+                                    '\$${(basePrice + shippingPrice).toStringAsFixed(2)}',
+                                    isTotal: true,
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                            const SizedBox(height: 20),
+
+                            // Confirmation Button
+                            ElevatedButton(
+                              onPressed: appState.activeOrder != null
+                                  ? () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) =>
+                                              const ClientTrackingScreen(),
+                                        ),
+                                      );
+                                    }
+                                  : () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) =>
+                                              const ClientConfirmScreen(),
+                                        ),
+                                      );
+                                    },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF3498DB),
+                                foregroundColor: const Color(0xFF09121F),
+                                elevation: 0,
+                                minimumSize: const Size(double.infinity, 56),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
                                 ),
-                            ],
-                          ),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(
+                                    Icons.local_shipping,
+                                    size: 20,
+                                    color: Color(0xFF09121F),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Text(
+                                    appState.activeOrder != null
+                                        ? 'Ver Pedido en Curso'
+                                        : 'Confirmar Pedido Premium',
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFF09121F),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                    );
-                  }).toList(),
-                ),
-                
-                const SizedBox(height: 24),
-                
-                // Pricing Breakdown Box
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF0D1724),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppTheme.borderDark),
-                  ),
-                  child: Column(
-                    children: [
-                      _buildCostRow('Costo base (${selectedOption['label']}):', '\$${basePrice.toStringAsFixed(2)}'),
-                      const SizedBox(height: 8),
-                      _buildCostRow('Tarifa de envío:', '\$${shippingPrice.toStringAsFixed(2)}'),
-                      const Divider(height: 24, color: AppTheme.borderDark),
-                      _buildCostRow(
-                        'Total Estimado',
-                        '\$${(basePrice + shippingPrice).toStringAsFixed(2)}',
-                        isTotal: true,
-                      ),
-                    ],
-                  ),
-                ),
-                
-                const SizedBox(height: 20),
-                
-                // Confirmation Button
-                ElevatedButton(
-                  onPressed: appState.activeOrder != null
-                      ? () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => const ClientTrackingScreen()),
-                          );
-                        }
-                      : () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => const ClientConfirmScreen()),
-                          );
-                        },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF3498DB), // Sky blue background
-                    foregroundColor: const Color(0xFF09121F), // Dark navy text
-                    elevation: 0,
-                    minimumSize: const Size(double.infinity, 56),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.local_shipping, size: 20, color: Color(0xFF09121F)),
-                      const SizedBox(width: 10),
-                      Text(
-                        appState.activeOrder != null 
-                            ? 'Ver Pedido en Curso' 
-                            : 'Confirmar Pedido Premium',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF09121F),
-                        ),
-                      ),
-                    ],
-                  ),
                 ),
               ],
             ),

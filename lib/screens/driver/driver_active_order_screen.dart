@@ -11,7 +11,8 @@ class DriverActiveOrderScreen extends StatefulWidget {
   const DriverActiveOrderScreen({Key? key}) : super(key: key);
 
   @override
-  State<DriverActiveOrderScreen> createState() => _DriverActiveOrderScreenState();
+  State<DriverActiveOrderScreen> createState() =>
+      _DriverActiveOrderScreenState();
 }
 
 class _DriverActiveOrderScreenState extends State<DriverActiveOrderScreen> {
@@ -79,7 +80,9 @@ class _DriverActiveOrderScreenState extends State<DriverActiveOrderScreen> {
                   onPressed: () {
                     Navigator.pushAndRemoveUntil(
                       context,
-                      MaterialPageRoute(builder: (context) => const DriverHomeScreen()),
+                      MaterialPageRoute(
+                        builder: (context) => const DriverHomeScreen(),
+                      ),
                       (route) => false,
                     );
                   },
@@ -95,11 +98,13 @@ class _DriverActiveOrderScreenState extends State<DriverActiveOrderScreen> {
     final isAccepted = activeOrder.status == OrderStatus.accepted;
     final isInTransit = activeOrder.status == OrderStatus.inTransit;
 
-
     return Scaffold(
       backgroundColor: AppTheme.backgroundDark,
       appBar: AppBar(
-        title: Text(isAccepted ? 'Pedido Aceptado' : 'Ruta de Entrega', style: const TextStyle(color: AppTheme.textWhite)),
+        title: Text(
+          isAccepted ? 'Pedido Aceptado' : 'Ruta de Entrega',
+          style: const TextStyle(color: AppTheme.textWhite),
+        ),
         centerTitle: true,
         elevation: 0,
         backgroundColor: Colors.transparent,
@@ -112,9 +117,7 @@ class _DriverActiveOrderScreenState extends State<DriverActiveOrderScreen> {
       body: Stack(
         children: [
           // Map covering background
-          const Positioned.fill(
-            child: MockMapWidget(showRoute: true),
-          ),
+          const Positioned.fill(child: MockMapWidget(showRoute: true, isDriverView: true)),
 
           // Navigation directions floating banner (GPS look)
           if (isInTransit)
@@ -123,12 +126,18 @@ class _DriverActiveOrderScreenState extends State<DriverActiveOrderScreen> {
               left: 16,
               right: 16,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
                 decoration: BoxDecoration(
                   color: AppTheme.primaryBlue.withOpacity(0.95),
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
-                    BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 10),
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.2),
+                      blurRadius: 10,
+                    ),
                   ],
                 ),
                 child: Row(
@@ -142,11 +151,18 @@ class _DriverActiveOrderScreenState extends State<DriverActiveOrderScreen> {
                         children: [
                           const Text(
                             'En 200m gira a la derecha',
-                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
                           ),
                           Text(
                             'Ruta optimizada hacia la dirección del cliente',
-                            style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 11),
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.8),
+                              fontSize: 11,
+                            ),
                           ),
                         ],
                       ),
@@ -164,14 +180,16 @@ class _DriverActiveOrderScreenState extends State<DriverActiveOrderScreen> {
             child: Container(
               decoration: BoxDecoration(
                 color: AppTheme.cardDark,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(28),
+                ),
                 border: Border.all(color: AppTheme.borderDark),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withOpacity(0.2),
                     blurRadius: 20,
                     offset: const Offset(0, -5),
-                  )
+                  ),
                 ],
               ),
               padding: const EdgeInsets.all(24),
@@ -189,7 +207,10 @@ class _DriverActiveOrderScreenState extends State<DriverActiveOrderScreen> {
                           color: Color(0xFF0D1724),
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(Icons.person, color: AppTheme.primaryBlue),
+                        child: const Icon(
+                          Icons.person,
+                          color: AppTheme.primaryBlue,
+                        ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -198,22 +219,33 @@ class _DriverActiveOrderScreenState extends State<DriverActiveOrderScreen> {
                           children: [
                             Text(
                               appState.userName,
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppTheme.textWhite),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15,
+                                color: AppTheme.textWhite,
+                              ),
                             ),
                             Text(
                               'Pedido: ${activeOrder.liters} L • \$${activeOrder.price.toInt()}',
-                              style: const TextStyle(color: AppTheme.textMuted, fontSize: 12),
+                              style: const TextStyle(
+                                color: AppTheme.textMuted,
+                                fontSize: 12,
+                              ),
                             ),
                           ],
                         ),
                       ),
-                      
+
                       // Contact client
                       IconButton(
                         icon: const Icon(Icons.phone, color: Colors.green),
                         onPressed: () {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Llamando a ${appState.userName}...')),
+                            SnackBar(
+                              content: Text(
+                                'Llamando a ${appState.userName}...',
+                              ),
+                            ),
                           );
                         },
                       ),
@@ -225,7 +257,11 @@ class _DriverActiveOrderScreenState extends State<DriverActiveOrderScreen> {
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(Icons.location_on, color: AppTheme.error, size: 20),
+                      const Icon(
+                        Icons.location_on,
+                        color: AppTheme.error,
+                        size: 20,
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Column(
@@ -233,12 +269,20 @@ class _DriverActiveOrderScreenState extends State<DriverActiveOrderScreen> {
                           children: [
                             const Text(
                               'Dirección de Entrega',
-                              style: TextStyle(color: AppTheme.textMuted, fontSize: 11, fontWeight: FontWeight.bold),
+                              style: TextStyle(
+                                color: AppTheme.textMuted,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                             const SizedBox(height: 2),
                             Text(
                               activeOrder.address,
-                              style: const TextStyle(color: AppTheme.textWhite, fontSize: 13, fontWeight: FontWeight.w500),
+                              style: const TextStyle(
+                                color: AppTheme.textWhite,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                              ),
                               maxLines: 2,
                             ),
                           ],
@@ -246,7 +290,7 @@ class _DriverActiveOrderScreenState extends State<DriverActiveOrderScreen> {
                       ),
                     ],
                   ),
-                  
+
                   const SizedBox(height: 20),
 
                   // Status display / Action button
@@ -271,17 +315,33 @@ class _DriverActiveOrderScreenState extends State<DriverActiveOrderScreen> {
                   ],
 
                   const SizedBox(height: 12),
-                  
+
                   // Cancel Trip Button
                   OutlinedButton(
-                    onPressed: () {
-                      appState.cancelActiveOrder();
+                    onPressed: () async {
+                      final cancelled = await appState.cancelActiveOrder();
+                      if (!context.mounted) return;
+                      if (!cancelled) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              appState.lastCancelError ??
+                                  'No se pudo cancelar el viaje.',
+                            ),
+                          ),
+                        );
+                        return;
+                      }
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Viaje cancelado por el conductor.')),
+                        const SnackBar(
+                          content: Text('Viaje cancelado por el conductor.'),
+                        ),
                       );
                       Navigator.pushAndRemoveUntil(
                         context,
-                        MaterialPageRoute(builder: (context) => const DriverHomeScreen()),
+                        MaterialPageRoute(
+                          builder: (context) => const DriverHomeScreen(),
+                        ),
                         (route) => false,
                       );
                     },
@@ -289,7 +349,10 @@ class _DriverActiveOrderScreenState extends State<DriverActiveOrderScreen> {
                       foregroundColor: AppTheme.error,
                       side: const BorderSide(color: AppTheme.error),
                     ),
-                    child: const Text('Cancelar Viaje', style: TextStyle(fontWeight: FontWeight.bold)),
+                    child: const Text(
+                      'Cancelar Viaje',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
                   ),
                 ],
               ),

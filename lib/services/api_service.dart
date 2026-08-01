@@ -8,18 +8,19 @@ class ApiService {
   static String? authToken;
 
   static Map<String, String> get _headers => {
-        'Content-Type': 'application/json',
-        if (authToken != null) 'Authorization': 'Bearer $authToken',
-      };
+    'Content-Type': 'application/json',
+    if (authToken != null) 'Authorization': 'Bearer $authToken',
+  };
 
   static Map<String, String> get _authHeadersOnly => {
-        if (authToken != null) 'Authorization': 'Bearer $authToken',
-      };
+    if (authToken != null) 'Authorization': 'Bearer $authToken',
+  };
 
   // Default apunta a producción (Render); override con
   // --dart-define=API_BASE_URL=http://10.0.2.2:3000 para desarrollo local.
-  static const String _apiBaseUrlOverride =
-      String.fromEnvironment('API_BASE_URL');
+  static const String _apiBaseUrlOverride = String.fromEnvironment(
+    'API_BASE_URL',
+  );
 
   static String get baseUrl {
     if (_apiBaseUrlOverride.isNotEmpty) {
@@ -63,18 +64,21 @@ class ApiService {
   }
 
   // Auth: Login directo por teléfono o correo + contraseña (público)
-  static Future<Map<String, dynamic>?> login(String identificador, String password) async {
+  static Future<Map<String, dynamic>?> login(
+    String identificador,
+    String password,
+  ) async {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/api/v1/auth/login'),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'identificador': identificador, 'password': password}),
+        body: jsonEncode({
+          'identificador': identificador,
+          'password': password,
+        }),
       );
       final body = jsonDecode(response.body);
-      return {
-        'statusCode': response.statusCode,
-        'data': body,
-      };
+      return {'statusCode': response.statusCode, 'data': body};
     } catch (e) {
       debugPrint('Login error: $e');
     }
@@ -120,7 +124,8 @@ class ApiService {
           'email': email,
           'otp': otp,
           'password': password,
-          if (identificacionFiscal != null) 'identificacion_fiscal': identificacionFiscal,
+          if (identificacionFiscal != null)
+            'identificacion_fiscal': identificacionFiscal,
         }),
       );
       return {
@@ -255,9 +260,15 @@ class ApiService {
         headers: _headers,
         body: jsonEncode(bodyMap),
       );
+      final decoded = jsonDecode(response.body);
       if (response.statusCode == 201 || response.statusCode == 200) {
-        return jsonDecode(response.body);
+        return decoded;
       }
+      // Conservar el cuerpo del error (ej. "Debe calificar el servicio anterior...")
+      // en vez de descartarlo: el llamador lo necesita para no simular un pedido
+      // que el backend en realidad rechazó.
+      debugPrint('Request order failed (${response.statusCode}): $decoded');
+      return decoded is Map<String, dynamic> ? decoded : null;
     } catch (e) {
       debugPrint('Request order error: $e');
     }
@@ -285,7 +296,9 @@ class ApiService {
 
   // Orders: Accept order as driver (requiere sesión)
   static Future<Map<String, dynamic>?> acceptOrder(
-      String orderId, String driverId) async {
+    String orderId,
+    String driverId,
+  ) async {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/api/v1/orders/$orderId/accept'),
@@ -303,7 +316,10 @@ class ApiService {
 
   // Orders: Update order status (En Ruta, Entregado, etc.) (requiere sesión)
   static Future<Map<String, dynamic>?> updateOrderStatus(
-      String orderId, String status, {String? detalle}) async {
+    String orderId,
+    String status, {
+    String? detalle,
+  }) async {
     try {
       final response = await http.patch(
         Uri.parse('$baseUrl/api/v1/orders/$orderId/status'),
@@ -324,15 +340,15 @@ class ApiService {
 
   // Orders: Cancel order (requiere sesión)
   static Future<Map<String, dynamic>?> cancelOrder(
-      String orderId, String motivo, String canceladoPor) async {
+    String orderId,
+    String motivo,
+    String canceladoPor,
+  ) async {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/api/v1/orders/$orderId/cancel'),
         headers: _headers,
-        body: jsonEncode({
-          'motivo': motivo,
-          'cancelado_por': canceladoPor,
-        }),
+        body: jsonEncode({'motivo': motivo, 'cancelado_por': canceladoPor}),
       );
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
@@ -351,9 +367,13 @@ class ApiService {
         Uri.parse('$baseUrl/api/v1/payments/upload-comprobante'),
       );
       request.headers.addAll(_authHeadersOnly);
-      request.files.add(await http.MultipartFile.fromPath('comprobante', file.path));
+      request.files.add(
+        await http.MultipartFile.fromPath('comprobante', file.path),
+      );
 
-      final streamedResponse = await request.send().timeout(const Duration(seconds: 20));
+      final streamedResponse = await request.send().timeout(
+        const Duration(seconds: 20),
+      );
       final response = await http.Response.fromStream(streamedResponse);
 
       if (response.statusCode == 201 || response.statusCode == 200) {
@@ -435,15 +455,14 @@ class ApiService {
 
   // Payments: Request wallet withdrawal (requiere sesión)
   static Future<Map<String, dynamic>?> withdrawWallet(
-      String driverId, double monto) async {
+    String driverId,
+    double monto,
+  ) async {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/api/v1/payments/wallet/withdraw'),
         headers: _headers,
-        body: jsonEncode({
-          'id_cisternero': driverId,
-          'monto': monto,
-        }),
+        body: jsonEncode({'id_cisternero': driverId, 'monto': monto}),
       );
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
@@ -625,7 +644,9 @@ class ApiService {
   static Future<bool> markNotificationRead(String notificationId) async {
     try {
       final response = await http.patch(
-        Uri.parse('$baseUrl/api/v1/tracking/notifications/$notificationId/read'),
+        Uri.parse(
+          '$baseUrl/api/v1/tracking/notifications/$notificationId/read',
+        ),
         headers: _authHeadersOnly,
       );
       return response.statusCode == 200;

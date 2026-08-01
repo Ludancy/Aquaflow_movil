@@ -6,6 +6,7 @@ import '../../services/socket_service.dart';
 import '../../state/app_state.dart';
 import '../../theme.dart';
 import '../../widgets/mock_map.dart';
+import '../../widgets/rating_dialog.dart';
 import 'client_home_screen.dart';
 
 class ClientTrackingScreen extends StatefulWidget {
@@ -18,6 +19,7 @@ class ClientTrackingScreen extends StatefulWidget {
 class _ClientTrackingScreenState extends State<ClientTrackingScreen> {
   String? _joinedOrderId;
   LatLng? _driverLocation;
+  bool _ratingPromptShown = false;
 
   @override
   void dispose() {
@@ -47,7 +49,26 @@ class _ClientTrackingScreenState extends State<ClientTrackingScreen> {
 
     SocketService.onOrderStatus((data) {
       if (data['id_pedido'] != orderId || !mounted) return;
-      context.read<AppState>().applyRemoteOrderStatus(orderId, data['estado'] as String? ?? '');
+      context.read<AppState>().applyRemoteOrderStatus(
+        orderId,
+        data['estado'] as String? ?? '',
+        cisternero: data['cisternero'] as Map<String, dynamic>?,
+      );
+    });
+  }
+
+  void _maybeShowRatingPrompt(AppState appState) {
+    final pending = appState.lastDeliveredOrderPendingRating;
+    if (pending == null || _ratingPromptShown) return;
+    _ratingPromptShown = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      showRatingDialog(
+        context,
+        appState,
+        pending,
+        onDone: () => appState.clearLastDeliveredOrderPendingRating(),
+      );
     });
   }
 
@@ -72,6 +93,7 @@ class _ClientTrackingScreenState extends State<ClientTrackingScreen> {
 
     // Fallback if somehow there's no active order
     if (activeOrder == null) {
+      _maybeShowRatingPrompt(appState);
       return Scaffold(
         backgroundColor: AppTheme.backgroundDark,
         body: Center(
@@ -80,11 +102,19 @@ class _ClientTrackingScreenState extends State<ClientTrackingScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.check_circle_outline, color: AppTheme.success, size: 64),
+                const Icon(
+                  Icons.check_circle_outline,
+                  color: AppTheme.success,
+                  size: 64,
+                ),
                 const SizedBox(height: 16),
                 const Text(
                   '¡Servicio Completado!',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppTheme.textWhite),
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.textWhite,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 const Text(
@@ -97,7 +127,9 @@ class _ClientTrackingScreenState extends State<ClientTrackingScreen> {
                   onPressed: () {
                     Navigator.pushAndRemoveUntil(
                       context,
-                      MaterialPageRoute(builder: (context) => const ClientHomeScreen()),
+                      MaterialPageRoute(
+                        builder: (context) => const ClientHomeScreen(),
+                      ),
                       (route) => false,
                     );
                   },
@@ -113,11 +145,14 @@ class _ClientTrackingScreenState extends State<ClientTrackingScreen> {
     final isRequested = activeOrder.status == OrderStatus.requested;
     final isAccepted = activeOrder.status == OrderStatus.accepted;
     final isInTransit = activeOrder.status == OrderStatus.inTransit;
-    
+
     return Scaffold(
       backgroundColor: AppTheme.backgroundDark,
       appBar: AppBar(
-        title: Text(activeOrder.statusText, style: const TextStyle(color: AppTheme.textWhite)),
+        title: Text(
+          activeOrder.statusText,
+          style: const TextStyle(color: AppTheme.textWhite),
+        ),
         centerTitle: true,
         elevation: 0,
         backgroundColor: Colors.transparent,
@@ -151,12 +186,18 @@ class _ClientTrackingScreenState extends State<ClientTrackingScreen> {
               left: 16,
               right: 16,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
                 decoration: BoxDecoration(
                   color: AppTheme.warning.withOpacity(0.95),
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
-                    BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 10),
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.2),
+                      blurRadius: 10,
+                    ),
                   ],
                 ),
                 child: Row(
@@ -170,11 +211,18 @@ class _ClientTrackingScreenState extends State<ClientTrackingScreen> {
                         children: [
                           const Text(
                             'Esperando Aceptación de Cisternero',
-                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
                           ),
                           Text(
                             'Tu solicitud ha sido enviada a las cisternas disponibles.',
-                            style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 11),
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.9),
+                              fontSize: 11,
+                            ),
                           ),
                         ],
                       ),
@@ -192,14 +240,16 @@ class _ClientTrackingScreenState extends State<ClientTrackingScreen> {
             child: Container(
               decoration: BoxDecoration(
                 color: AppTheme.cardDark,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(28),
+                ),
                 border: Border.all(color: AppTheme.borderDark),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withOpacity(0.2),
                     blurRadius: 20,
                     offset: const Offset(0, -5),
-                  )
+                  ),
                 ],
               ),
               padding: const EdgeInsets.all(24),
@@ -214,40 +264,71 @@ class _ClientTrackingScreenState extends State<ClientTrackingScreen> {
                         const SizedBox(
                           width: 20,
                           height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.primaryBlue),
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppTheme.primaryBlue,
+                          ),
                         ),
                         const SizedBox(width: 12),
                         const Expanded(
                           child: Text(
                             'Buscando cisterna cercana...',
-                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppTheme.textWhite),
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: AppTheme.textWhite,
+                            ),
                           ),
                         ),
                       ] else if (isAccepted) ...[
-                        const Icon(Icons.check_circle, color: AppTheme.success, size: 24),
+                        const Icon(
+                          Icons.check_circle,
+                          color: AppTheme.success,
+                          size: 24,
+                        ),
                         const SizedBox(width: 12),
                         const Expanded(
                           child: Text(
                             'Cisterna asignada',
-                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppTheme.textWhite),
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: AppTheme.textWhite,
+                            ),
                           ),
                         ),
                         const Text(
                           'En preparación',
-                          style: TextStyle(fontSize: 12, color: AppTheme.textMuted, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppTheme.textMuted,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ] else if (isInTransit) ...[
-                        const Icon(Icons.local_shipping, color: AppTheme.primaryBlue, size: 24),
+                        const Icon(
+                          Icons.local_shipping,
+                          color: AppTheme.primaryBlue,
+                          size: 24,
+                        ),
                         const SizedBox(width: 12),
                         const Expanded(
                           child: Text(
                             'Cisterna en camino',
-                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppTheme.textWhite),
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: AppTheme.textWhite,
+                            ),
                           ),
                         ),
                         Text(
                           'ETA: ~15 min',
-                          style: const TextStyle(fontSize: 13, color: AppTheme.primaryBlue, fontWeight: FontWeight.bold),
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: AppTheme.primaryBlue,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ],
                     ],
@@ -265,7 +346,11 @@ class _ClientTrackingScreenState extends State<ClientTrackingScreen> {
                             color: AppTheme.primaryBlue.withOpacity(0.12),
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(Icons.person, color: AppTheme.primaryBlue, size: 28),
+                          child: const Icon(
+                            Icons.person,
+                            color: AppTheme.primaryBlue,
+                            size: 28,
+                          ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
@@ -274,33 +359,48 @@ class _ClientTrackingScreenState extends State<ClientTrackingScreen> {
                             children: [
                               Text(
                                 activeOrder.driverName!,
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppTheme.textWhite),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 15,
+                                  color: AppTheme.textWhite,
+                                ),
                               ),
                               Text(
                                 'Cisterna: ${activeOrder.driverPlate} • ${activeOrder.liters} L',
-                                style: const TextStyle(color: AppTheme.textMuted, fontSize: 12),
+                                style: const TextStyle(
+                                  color: AppTheme.textMuted,
+                                  fontSize: 12,
+                                ),
                               ),
                             ],
                           ),
                         ),
-                        
+
                         // Action Buttons
                         _IconButton(
-                          icon: Icons.phone_outlined, 
+                          icon: Icons.phone_outlined,
                           color: Colors.green,
                           onTap: () {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Llamando a ${activeOrder.driverName}...')),
+                              SnackBar(
+                                content: Text(
+                                  'Llamando a ${activeOrder.driverName}...',
+                                ),
+                              ),
                             );
                           },
                         ),
                         const SizedBox(width: 8),
                         _IconButton(
-                          icon: Icons.chat_bubble_outline, 
+                          icon: Icons.chat_bubble_outline,
                           color: AppTheme.primaryBlue,
                           onTap: () {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Abriendo chat con ${activeOrder.driverName}...')),
+                              SnackBar(
+                                content: Text(
+                                  'Abriendo chat con ${activeOrder.driverName}...',
+                                ),
+                              ),
                             );
                           },
                         ),
@@ -310,17 +410,31 @@ class _ClientTrackingScreenState extends State<ClientTrackingScreen> {
                   ],
 
                   const SizedBox(height: 12),
-                  
+
                   // Cancel Button
                   OutlinedButton(
-                    onPressed: () {
-                      appState.cancelActiveOrder();
+                    onPressed: () async {
+                      final cancelled = await appState.cancelActiveOrder();
+                      if (!context.mounted) return;
+                      if (!cancelled) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              appState.lastCancelError ??
+                                  'No se pudo cancelar el pedido.',
+                            ),
+                          ),
+                        );
+                        return;
+                      }
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('Pedido cancelado.')),
                       );
                       Navigator.pushAndRemoveUntil(
                         context,
-                        MaterialPageRoute(builder: (context) => const ClientHomeScreen()),
+                        MaterialPageRoute(
+                          builder: (context) => const ClientHomeScreen(),
+                        ),
                         (route) => false,
                       );
                     },
@@ -328,7 +442,10 @@ class _ClientTrackingScreenState extends State<ClientTrackingScreen> {
                       foregroundColor: AppTheme.error,
                       side: const BorderSide(color: AppTheme.error),
                     ),
-                    child: const Text('Cancelar Pedido', style: TextStyle(fontWeight: FontWeight.bold)),
+                    child: const Text(
+                      'Cancelar Pedido',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
                   ),
                 ],
               ),
@@ -361,11 +478,7 @@ class _IconButton extends StatelessWidget {
         customBorder: const CircleBorder(),
         child: Padding(
           padding: const EdgeInsets.all(10.0),
-          child: Icon(
-            icon,
-            color: color,
-            size: 20,
-          ),
+          child: Icon(icon, color: color, size: 20),
         ),
       ),
     );

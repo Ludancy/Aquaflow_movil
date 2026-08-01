@@ -37,7 +37,10 @@ class _ClientConfirmScreenState extends State<ClientConfirmScreen> {
       child: Scaffold(
         backgroundColor: AppTheme.backgroundDark,
         appBar: AppBar(
-          title: const Text('Confirmar Pedido', style: TextStyle(color: AppTheme.textWhite)),
+          title: const Text(
+            'Confirmar Pedido',
+            style: TextStyle(color: AppTheme.textWhite),
+          ),
           centerTitle: true,
           elevation: 0,
           backgroundColor: Colors.transparent,
@@ -48,229 +51,299 @@ class _ClientConfirmScreenState extends State<ClientConfirmScreen> {
           ),
         ),
         body: SafeArea(
-          child: Padding(
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(
+              parent: BouncingScrollPhysics(),
+            ),
             padding: const EdgeInsets.all(24.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Order Summary Card
-                Container(
-                  padding: const EdgeInsets.all(20.0),
-                  decoration: BoxDecoration(
-                    color: AppTheme.cardDark,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: AppTheme.borderDark),
+                  // Order Summary Card
+                  Container(
+                    padding: const EdgeInsets.all(20.0),
+                    decoration: BoxDecoration(
+                      color: AppTheme.cardDark,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: AppTheme.borderDark),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Row(
+                          children: [
+                            Icon(
+                              Icons.receipt_long,
+                              color: AppTheme.primaryBlue,
+                            ),
+                            SizedBox(width: 8),
+                            Text(
+                              'Resumen de Pedido',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: AppTheme.textWhite,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const Divider(height: 32, color: AppTheme.borderDark),
+
+                        // Volume row
+                        _buildSummaryRow(
+                          'Volumen de agua:',
+                          '${appState.selectedLiters.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')} Litros',
+                          fontWeight: FontWeight.bold,
+                        ),
+                        const SizedBox(height: 12),
+
+                        // Address row
+                        _buildSummaryRow(
+                          'Dirección de entrega:',
+                          appState.deliveryAddress,
+                          isMultiLine: true,
+                        ),
+                        const SizedBox(height: 12),
+
+                        // Price row
+                        _buildSummaryRow(
+                          'Precio estimado:',
+                          '\$${appState.selectedPrice.toStringAsFixed(2)}',
+                          valueColor: AppTheme.primaryBlue,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ],
+                    ),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Row(
-                        children: [
-                          Icon(Icons.receipt_long, color: AppTheme.primaryBlue),
-                          SizedBox(width: 8),
-                          Text(
-                            'Resumen de Pedido',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: AppTheme.textWhite,
+
+                  const SizedBox(height: 24),
+
+                  // Payment Method Header
+                  const Text(
+                    'Método de Pago',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.textWhite,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Zelle option
+                  _PaymentMethodCard(
+                    title: 'Zelle',
+                    subtitle:
+                        appState.paymentInfo?['zelle']?['email'] ??
+                        'Datos no disponibles',
+                    icon: Icons.account_balance_wallet_outlined,
+                    isSelected: appState.paymentMethod == 'Zelle',
+                    onTap: () => appState.setPaymentMethod('Zelle'),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Pago Móvil option
+                  _PaymentMethodCard(
+                    title:
+                        'Pago Móvil${appState.paymentInfo?['pago_movil']?['banco'] != null ? ' - ${appState.paymentInfo!['pago_movil']['banco']}' : ''}',
+                    subtitle:
+                        appState.paymentInfo?['pago_movil']?['telefono'] != null
+                        ? '${appState.paymentInfo!['pago_movil']['telefono']} · RIF ${appState.paymentInfo!['pago_movil']['rif']}'
+                        : 'Paga con datos telefónicos',
+                    icon: Icons.phone_android_outlined,
+                    isSelected: appState.paymentMethod == 'Pago Movil',
+                    onTap: () => appState.setPaymentMethod('Pago Movil'),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Binance Pay option
+                  _PaymentMethodCard(
+                    title: 'Binance Pay',
+                    subtitle:
+                        appState.paymentInfo?['binance_pay']?['id'] != null
+                        ? 'Pay ID: ${appState.paymentInfo!['binance_pay']['id']}'
+                        : 'Paga con USDT/cripto',
+                    icon: Icons.currency_bitcoin,
+                    isSelected: appState.paymentMethod == 'Binance Pay',
+                    onTap: () => appState.setPaymentMethod('Binance Pay'),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Saldo AquaFlow option
+                  _PaymentMethodCard(
+                    title: 'Saldo AquaFlow',
+                    subtitle:
+                        'Disponible: \$${appState.walletBalanceUsd.toStringAsFixed(2)}'
+                        '${appState.walletBalanceUsd < appState.selectedPrice ? ' · insuficiente para este pedido' : ''}',
+                    icon: Icons.account_balance_wallet,
+                    isSelected: appState.paymentMethod == 'Saldo AquaFlow',
+                    onTap: appState.walletBalanceUsd >= appState.selectedPrice
+                        ? () => appState.setPaymentMethod('Saldo AquaFlow')
+                        : null,
+                  ),
+
+                  if (appState.paymentMethod != 'Saldo AquaFlow') ...[
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: _refController,
+                      keyboardType: appState.paymentMethod == 'Pago Movil'
+                          ? TextInputType.number
+                          : TextInputType.text,
+                      style: const TextStyle(
+                        color: AppTheme.textWhite,
+                        fontSize: 14,
+                      ),
+                      decoration: InputDecoration(
+                        labelText: appState.paymentMethod == 'Pago Movil'
+                            ? 'Últimos 4 dígitos de la referencia'
+                            : appState.paymentMethod == 'Binance Pay'
+                            ? 'ID de transacción (TxID)'
+                            : 'Número de Referencia de Pago',
+                        hintText: appState.paymentMethod == 'Pago Movil'
+                            ? 'Ej. 1234'
+                            : 'Ej. REF-123456',
+                        prefixIcon: const Icon(Icons.numbers, size: 18),
+                      ),
+                    ),
+                  ],
+
+                  if (appState.paymentMethod == 'Pago Movil') ...[
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      initialValue: _bancoEmisor,
+                      dropdownColor: AppTheme.cardDark,
+                      style: const TextStyle(
+                        color: AppTheme.textWhite,
+                        fontSize: 14,
+                      ),
+                      decoration: const InputDecoration(
+                        labelText: 'Banco emisor',
+                        prefixIcon: Icon(
+                          Icons.account_balance_outlined,
+                          size: 18,
+                        ),
+                      ),
+                      items: bancosVenezuela
+                          .map(
+                            (banco) => DropdownMenuItem(
+                              value: banco,
+                              child: Text(banco),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (value) =>
+                          setState(() => _bancoEmisor = value),
+                    ),
+                  ],
+
+                  const SizedBox(height: 24),
+
+                  // Confirm Payment Button
+                  ElevatedButton(
+                    onPressed: () async {
+                      final referencia = _refController.text.trim();
+                      final bancoEmisor = _bancoEmisor ?? '';
+
+                      if (appState.paymentMethod == 'Pago Movil') {
+                        if (!RegExp(r'^\d{4}$').hasMatch(referencia)) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Ingresa los últimos 4 dígitos de la referencia',
+                              ),
+                            ),
+                          );
+                          return;
+                        }
+                        if (bancoEmisor.isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Selecciona el banco emisor'),
+                            ),
+                          );
+                          return;
+                        }
+                      } else if (appState.paymentMethod != 'Saldo AquaFlow' &&
+                          referencia.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Ingresa el número de referencia de pago',
                             ),
                           ),
-                        ],
-                      ),
-                      const Divider(height: 32, color: AppTheme.borderDark),
-                      
-                      // Volume row
-                      _buildSummaryRow(
-                        'Volumen de agua:', 
-                        '${appState.selectedLiters.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')} Litros',
-                        fontWeight: FontWeight.bold,
-                      ),
-                      const SizedBox(height: 12),
-                      
-                      // Address row
-                      _buildSummaryRow(
-                        'Dirección de entrega:', 
-                        appState.deliveryAddress,
-                        isMultiLine: true,
-                      ),
-                      const SizedBox(height: 12),
-                      
-                      // Price row
-                      _buildSummaryRow(
-                        'Precio estimado:', 
-                        '\$${appState.selectedPrice.toStringAsFixed(2)}',
-                        valueColor: AppTheme.primaryBlue,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ],
-                  ),
-                ),
-                
-                const SizedBox(height: 24),
-                
-                // Payment Method Header
-                const Text(
-                  'Método de Pago',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: AppTheme.textWhite,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                
-                // Zelle option
-                _PaymentMethodCard(
-                  title: 'Zelle',
-                  subtitle: appState.paymentInfo?['zelle']?['email'] ?? 'Datos no disponibles',
-                  icon: Icons.account_balance_wallet_outlined,
-                  isSelected: appState.paymentMethod == 'Zelle',
-                  onTap: () => appState.setPaymentMethod('Zelle'),
-                ),
-                const SizedBox(height: 12),
-
-                // Pago Móvil option
-                _PaymentMethodCard(
-                  title: 'Pago Móvil${appState.paymentInfo?['pago_movil']?['banco'] != null ? ' - ${appState.paymentInfo!['pago_movil']['banco']}' : ''}',
-                  subtitle: appState.paymentInfo?['pago_movil']?['telefono'] != null
-                      ? '${appState.paymentInfo!['pago_movil']['telefono']} · RIF ${appState.paymentInfo!['pago_movil']['rif']}'
-                      : 'Paga con datos telefónicos',
-                  icon: Icons.phone_android_outlined,
-                  isSelected: appState.paymentMethod == 'Pago Movil',
-                  onTap: () => appState.setPaymentMethod('Pago Movil'),
-                ),
-                const SizedBox(height: 12),
-
-                // Binance Pay option
-                _PaymentMethodCard(
-                  title: 'Binance Pay',
-                  subtitle: appState.paymentInfo?['binance_pay']?['id'] != null
-                      ? 'Pay ID: ${appState.paymentInfo!['binance_pay']['id']}'
-                      : 'Paga con USDT/cripto',
-                  icon: Icons.currency_bitcoin,
-                  isSelected: appState.paymentMethod == 'Binance Pay',
-                  onTap: () => appState.setPaymentMethod('Binance Pay'),
-                ),
-                const SizedBox(height: 12),
-
-                // Saldo AquaFlow option
-                _PaymentMethodCard(
-                  title: 'Saldo AquaFlow',
-                  subtitle: 'Disponible: \$${appState.walletBalanceUsd.toStringAsFixed(2)}'
-                      '${appState.walletBalanceUsd < appState.selectedPrice ? ' · insuficiente para este pedido' : ''}',
-                  icon: Icons.account_balance_wallet,
-                  isSelected: appState.paymentMethod == 'Saldo AquaFlow',
-                  onTap: appState.walletBalanceUsd >= appState.selectedPrice
-                      ? () => appState.setPaymentMethod('Saldo AquaFlow')
-                      : null,
-                ),
-
-                if (appState.paymentMethod != 'Saldo AquaFlow') ...[
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: _refController,
-                    keyboardType: appState.paymentMethod == 'Pago Movil' ? TextInputType.number : TextInputType.text,
-                    style: const TextStyle(color: AppTheme.textWhite, fontSize: 14),
-                    decoration: InputDecoration(
-                      labelText: appState.paymentMethod == 'Pago Movil'
-                          ? 'Últimos 4 dígitos de la referencia'
-                          : appState.paymentMethod == 'Binance Pay'
-                              ? 'ID de transacción (TxID)'
-                              : 'Número de Referencia de Pago',
-                      hintText: appState.paymentMethod == 'Pago Movil' ? 'Ej. 1234' : 'Ej. REF-123456',
-                      prefixIcon: const Icon(Icons.numbers, size: 18),
-                    ),
-                  ),
-                ],
-
-                if (appState.paymentMethod == 'Pago Movil') ...[
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    initialValue: _bancoEmisor,
-                    dropdownColor: AppTheme.cardDark,
-                    style: const TextStyle(color: AppTheme.textWhite, fontSize: 14),
-                    decoration: const InputDecoration(
-                      labelText: 'Banco emisor',
-                      prefixIcon: Icon(Icons.account_balance_outlined, size: 18),
-                    ),
-                    items: bancosVenezuela
-                        .map((banco) => DropdownMenuItem(value: banco, child: Text(banco)))
-                        .toList(),
-                    onChanged: (value) => setState(() => _bancoEmisor = value),
-                  ),
-                ],
-
-                const Spacer(),
-
-                // Confirm Payment Button
-                ElevatedButton(
-                  onPressed: () async {
-                    final referencia = _refController.text.trim();
-                    final bancoEmisor = _bancoEmisor ?? '';
-
-                    if (appState.paymentMethod == 'Pago Movil') {
-                      if (!RegExp(r'^\d{4}$').hasMatch(referencia)) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Ingresa los últimos 4 dígitos de la referencia')),
                         );
                         return;
                       }
-                      if (bancoEmisor.isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Selecciona el banco emisor')),
+
+                      if (appState.paymentMethod != 'Saldo AquaFlow') {
+                        await appState.savePreferredPaymentMethod(
+                          appState.paymentMethod,
+                          bancoEmisor: appState.paymentMethod == 'Pago Movil'
+                              ? bancoEmisor
+                              : null,
                         );
+                      }
+
+                      final orderCreated = await appState.createOrder();
+                      if (!orderCreated) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                appState.lastOrderError ??
+                                    'No se pudo crear el pedido. Intenta de nuevo.',
+                              ),
+                            ),
+                          );
+                        }
                         return;
                       }
-                    } else if (appState.paymentMethod != 'Saldo AquaFlow' && referencia.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Ingresa el número de referencia de pago')),
+                      final ok = await appState.processOrderPayment(
+                        appState.paymentMethod == 'Saldo AquaFlow'
+                            ? 'Saldo AquaFlow'
+                            : referencia,
+                        bancoEmisor: appState.paymentMethod == 'Pago Movil'
+                            ? bancoEmisor
+                            : null,
                       );
-                      return;
-                    }
-
-                    if (appState.paymentMethod != 'Saldo AquaFlow') {
-                      await appState.savePreferredPaymentMethod(
-                        appState.paymentMethod,
-                        bancoEmisor: appState.paymentMethod == 'Pago Movil' ? bancoEmisor : null,
-                      );
-                    }
-
-                    await appState.createOrder();
-                    final ok = await appState.processOrderPayment(
-                      appState.paymentMethod == 'Saldo AquaFlow' ? 'Saldo AquaFlow' : referencia,
-                      bancoEmisor: appState.paymentMethod == 'Pago Movil' ? bancoEmisor : null,
-                    );
-                    if (appState.paymentMethod == 'Saldo AquaFlow') {
-                      await appState.refreshClientWallet();
-                    }
-                    if (context.mounted) {
-                      if (ok) {
-                        _showSuccessDialog(context);
-                      } else {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('No se pudo registrar el pago. Intenta de nuevo.')),
-                        );
+                      if (appState.paymentMethod == 'Saldo AquaFlow') {
+                        await appState.refreshClientWallet();
                       }
-                    }
-                  },
-                  child: const Text('Confirmar y Solicitar'),
-                ),
-              ],
+                      if (context.mounted) {
+                        if (ok) {
+                          _showSuccessDialog(context);
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'No se pudo registrar el pago. Intenta de nuevo.',
+                              ),
+                            ),
+                          );
+                        }
+                      }
+                    },
+                    child: const Text('Confirmar y Solicitar'),
+                  ),
+                  const SizedBox(height: 40),
+                ],
+              ),
             ),
-          ),
         ),
       ),
     );
   }
 
-  Widget _buildSummaryRow(String label, String value, {
+  Widget _buildSummaryRow(
+    String label,
+    String value, {
     Color valueColor = AppTheme.textWhite,
     FontWeight fontWeight = FontWeight.normal,
     bool isMultiLine = false,
   }) {
     return Row(
-      crossAxisAlignment: isMultiLine ? CrossAxisAlignment.start : CrossAxisAlignment.center,
+      crossAxisAlignment: isMultiLine
+          ? CrossAxisAlignment.start
+          : CrossAxisAlignment.center,
       children: [
         Text(
           label,
@@ -384,59 +457,61 @@ class _PaymentMethodCard extends StatelessWidget {
         child: Opacity(
           opacity: disabled ? 0.5 : 1.0,
           child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: const Color(0xFF0D1724),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: isSelected ? AppTheme.primaryBlue : AppTheme.borderDark,
-              width: isSelected ? 1.5 : 1.0,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0D1724),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: isSelected ? AppTheme.primaryBlue : AppTheme.borderDark,
+                width: isSelected ? 1.5 : 1.0,
+              ),
             ),
-          ),
-          child: Row(
-            children: [
-              Icon(
-                icon,
-                color: isSelected ? AppTheme.primaryBlue : AppTheme.textMuted,
-                size: 24,
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.textWhite,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: AppTheme.textMuted,
-                      ),
-                    ),
-                  ],
+            child: Row(
+              children: [
+                Icon(
+                  icon,
+                  color: isSelected ? AppTheme.primaryBlue : AppTheme.textMuted,
+                  size: 24,
                 ),
-              ),
-              Container(
-                width: 20,
-                height: 20,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: isSelected ? AppTheme.primaryBlue : AppTheme.borderDark,
-                    width: isSelected ? 6.0 : 2.0,
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.textWhite,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppTheme.textMuted,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ),
-            ],
-          ),
+                Container(
+                  width: 20,
+                  height: 20,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: isSelected
+                          ? AppTheme.primaryBlue
+                          : AppTheme.borderDark,
+                      width: isSelected ? 6.0 : 2.0,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

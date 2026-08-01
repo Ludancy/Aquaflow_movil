@@ -104,7 +104,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
       children: [
         // Map Widget filling the screen
         const Positioned.fill(
-          child: MockMapWidget(showRoute: false),
+          child: MockMapWidget(showRoute: false, isDriverView: true),
         ),
 
         // Availability switcher HUD
