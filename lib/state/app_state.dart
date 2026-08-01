@@ -432,7 +432,7 @@ class AppState extends ChangeNotifier {
   void setDeliveryLocation(String address, LatLng coords) {
     if (address.contains('(') || address.startsWith('Ubicación GPS')) {
       final fallback = GeocodingService.getCachedAddress(coords) ??
-          GeocodingService.getFallbackRegionAddress(coords);
+          '${coords.latitude.toStringAsFixed(5)}, ${coords.longitude.toStringAsFixed(5)}';
       deliveryAddress = fallback;
     } else {
       deliveryAddress = address;

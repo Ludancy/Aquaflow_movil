@@ -78,7 +78,7 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
       if (pos != null) {
         final coords = LatLng(pos.latitude, pos.longitude);
         final addressStr = await GeocodingService.reverseGeocode(coords) ??
-            GeocodingService.getFallbackRegionAddress(coords);
+            '${coords.latitude.toStringAsFixed(5)}, ${coords.longitude.toStringAsFixed(5)}';
         appState.setDeliveryLocation(addressStr, coords);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
